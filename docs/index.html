@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" data-pwa>
+<title>E6B Flight Computer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" data-pwa>
+<meta name="description" content="E6B flight computer: wind triangle, density altitude, true airspeed, fuel, unit conversions and weight and balance." data-pwa>
+<meta name="theme-color" content="#EDF0EC" media="(prefers-color-scheme: light)" data-pwa>
+<meta name="theme-color" content="#0A0E12" media="(prefers-color-scheme: dark)" data-pwa>
+<meta name="mobile-web-app-capable" content="yes" data-pwa>
+<meta name="apple-mobile-web-app-capable" content="yes" data-pwa>
+<meta name="apple-mobile-web-app-title" content="E6B" data-pwa>
+<meta name="apple-mobile-web-app-status-bar-style" content="default" data-pwa>
+<link rel="manifest" href="manifest.webmanifest" data-pwa>
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" data-pwa>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" data-pwa>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: phone-first instrument panel. Sticky title bar; home is the calculator index; a calculator
+   stacks inputs, an avionics-style readout, a live diagram, then the math. From 960px the index
+   becomes a left rail beside the open calculator. */
+:root {
+  --bg: #EDF0EC;
+  --surface: #FFFFFF;
+  --surface-2: #F3F5F2;
+  --ink: #14202A;
+  --muted: #586672;
+  --line: #D1D8D3;
+  --course: #B0177C;        /* sectional-chart magenta: courses and tracks */
+  --value: #0B6A9C;         /* values you enter */
+  --wind: #A35F00;
+  --good: #1B7547;
+  --bad: #B42318;
+  --runway: #3A4550;
+  --runway-mark: #F4F6F3;
+  --screen: #0E161D;        /* the readout is always a cockpit display */
+  --screen-line: #263541;
+  --screen-ink: #E6EDF2;
+  --screen-muted: #93A5B4;
+  --screen-value: #45CFFF;
+  --screen-course: #FF5CD6;
+  --screen-good: #43DB7E;
+  --screen-bad: #FF7A6E;
+  --font-display: "B612", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "B612", "SF Mono", ui-monospace, Menlo, Consolas, monospace;   /* numbers: B612 with tabular figures */
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0E12; --surface: #11181F; --surface-2: #0D1419; --ink: #E6EDF2; --muted: #8D9CA9; --line: #24313C;
+    --course: #FF5CD6; --value: #45CFFF; --wind: #FFB02E; --good: #43DB7E; --bad: #FF7A6E;
+    --runway: #2B3640; --runway-mark: #C9D3DB;
+    --screen: #05090C; --screen-line: #22303B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A0E12; --surface: #11181F; --surface-2: #0D1419; --ink: #E6EDF2; --muted: #8D9CA9; --line: #24313C;
+  --course: #FF5CD6; --value: #45CFFF; --wind: #FFB02E; --good: #43DB7E; --bad: #FF7A6E;
+  --runway: #2B3640; --runway-mark: #C9D3DB;
+  --screen: #05090C; --screen-line: #22303B;
+  color-scheme: dark;
+}
+
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.5 var(--font-body);
+  touch-action: manipulation;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg);
+}
+a { color: var(--value); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--value); outline-offset: 2px; }
+
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.topbar-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: 12px; min-height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
+.brand svg { width: 30px; height: 30px; flex: none; }
+.brand b { font: 700 20px/1 var(--font-display); letter-spacing: .06em; }
+.brand span { font: 400 12px/1 var(--font-display); color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+.topbar .back { margin-left: auto; font: 700 14px/1 var(--font-display); text-decoration: none; padding: 10px 0 10px 12px; }
+
+.shell {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+  display: grid; gap: 24px;
+}
+@media (min-width: 960px) {
+  .shell { grid-template-columns: 300px minmax(0, 1fr); align-items: start; gap: 32px; padding-block: 24px 56px; }
+  .index { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 72px); max-height: calc(100vh - 96px); overflow: auto; padding-right: 6px; }
+  .topbar .back { display: none; }
+}
+@media (max-width: 959.98px) {
+  body.has-calc .index { display: none; }
+  body:not(.has-calc) .calc { display: none; }
+  body:not(.has-calc) .topbar .back { display: none; }
+}
+
+/* Index */
+.index { display: grid; gap: 18px; align-content: start; }
+.intro { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; }
+.intro p { margin: 0; font-size: 14px; color: var(--muted); }
+.intro .tip { color: var(--ink); }
+.ix-group { display: grid; gap: 2px; }
+.ix-group h2 {
+  margin: 0 0 4px; font: 700 11px/1.2 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+.ix-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 10px;
+  padding: 9px 12px; border-radius: var(--r); text-decoration: none; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line);
+}
+.ix-item + .ix-item { margin-top: -1px; }
+.ix-group .ix-item:not(:first-of-type) { border-top-left-radius: 0; border-top-right-radius: 0; }
+.ix-group .ix-item:not(:last-of-type) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.ix-name { font: 700 15px/1.3 var(--font-display); }
+.ix-sub { grid-column: 1; font-size: 13px; color: var(--muted); line-height: 1.35; }
+.ix-item::after {
+  content: ""; grid-column: 2; grid-row: 1 / span 2; width: 7px; height: 7px;
+  border: solid var(--muted); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); margin-right: 4px;
+}
+.ix-item[aria-current="page"] { border-color: var(--course); box-shadow: inset 3px 0 0 var(--course); position: relative; z-index: 1; }
+.ix-item:hover { background: var(--surface-2); }
+
+/* Calculator */
+.calc { display: grid; gap: 16px; min-width: 0; align-content: start; }
+.calc-head { display: grid; gap: 6px; }
+.eyebrow { font: 700 11px/1.2 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--course); }
+.calc-head h1 { margin: 0; font: 700 clamp(24px, 6vw, 32px)/1.15 var(--font-display); text-wrap: balance; letter-spacing: .01em; }
+.calc-head p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.inputs { padding: 4px 14px; }
+.field {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.field:last-child { border-bottom: 0; }
+.field label { font-weight: 500; font-size: 15px; line-height: 1.3; }
+.field .hint { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; }
+.control { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.num {
+  width: 7.2ch; min-width: 0; padding: 7px 9px; text-align: right;
+  font: 700 17px/1.2 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--value);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r);
+}
+.num.sm { width: 4.6ch; }
+.num.wide { width: 8.6ch; }
+.num:focus { border-color: var(--value); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--value) 30%, transparent); }
+.sfx { font: 700 13px/1 var(--font-display); color: var(--muted); min-width: 2.6em; }
+.sfx.tight { min-width: 0; }
+.sel { position: relative; display: inline-flex; }
+.sel::after {
+  content: ""; position: absolute; right: 9px; top: 50%; width: 6px; height: 6px; margin-top: -5px; pointer-events: none;
+  border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); opacity: .7;
+}
+.sel select {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  font: 700 16px/1.2 var(--font-display); color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: var(--r);
+  padding: 6px 24px 6px 8px; min-width: 4.4em;
+}
+.pm {
+  width: 34px; height: 34px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface);
+  font: 700 16px/1 var(--font-mono); color: var(--muted); cursor: pointer; flex: none;
+}
+.pm:active { background: var(--surface-2); }
+
+/* Readout: a cockpit display in both themes */
+.readout {
+  background: var(--screen); color: var(--screen-ink); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--screen-line);
+}
+.ro-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--screen-line); }
+.ro-grid.n1 { grid-template-columns: minmax(0, 1fr); }
+.ro-grid.odd > .ro-cell:first-child { grid-column: span 2; }
+@media (min-width: 700px) {
+  .ro-grid.n3, .ro-grid.n5, .ro-grid.n6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ro-grid.n3 > .ro-cell:first-child { grid-column: auto; }
+}
+.ro-cell { background: var(--screen); padding: 11px 14px 12px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.ro-label { font: 700 10.5px/1.25 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--screen-muted); }
+.ro-val { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.ro-num { font: 700 clamp(23px, 6.4vw, 30px)/1.1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--screen-value); white-space: nowrap; }
+.ro-num.course { color: var(--screen-course); }
+.ro-num.dim { color: var(--screen-muted); }
+.ro-unit { font: 700 13px/1 var(--font-display); color: var(--screen-muted); }
+.ro-side { font: 700 12px/1.2 var(--font-display); color: var(--screen-ink); letter-spacing: .04em; }
+.readout .sel select { color: var(--screen-muted); border-color: var(--screen-line); font-size: 16px; padding: 2px 20px 2px 6px; min-width: 0; }
+.readout .sel::after { right: 7px; color: var(--screen-muted); }
+.ro-msg { padding: 12px 14px; font: 700 13.5px/1.4 var(--font-display); color: var(--screen-bad); border-top: 1px solid var(--screen-line); }
+.ro-msg.info { color: var(--screen-muted); font-weight: 400; }
+.ro-msg:empty { display: none; }
+
+.diagram { margin: 0; padding: 12px 14px 14px; display: grid; gap: 10px; }
+.diagram svg { width: 100%; height: auto; max-width: 520px; justify-self: center; display: block; }
+.diagram svg text { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; color: var(--ink); justify-content: center; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 18px; height: 0; border-top: 3px solid; display: inline-block; }
+.legend i.dash { border-top-style: dashed; }
+.legend i.dot { width: 10px; height: 10px; border-radius: 50%; border: 0; }
+.legend i.ring { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; }
+.diagram-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 26px 0; }
+
+details.math { padding: 0 14px; }
+details.math summary {
+  cursor: pointer; padding: 12px 0; font: 700 14px/1.3 var(--font-display); list-style: none; display: flex; align-items: center; gap: 8px;
+}
+details.math summary::-webkit-details-marker { display: none; }
+details.math summary::before { content: "+"; font-family: var(--font-mono); color: var(--course); width: 1ch; }
+details.math[open] summary::before { content: "\2212"; }
+.math-body { padding: 0 0 14px; display: grid; gap: 8px; font-size: 14.5px; max-width: 66ch; }
+.math-body p { margin: 0; }
+.math-body code, .f {
+  font: 400 13.5px/1.5 var(--font-mono); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere;
+}
+.f { display: block; padding: 7px 10px; }
+
+/* Unit converter */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px;
+  font: 700 13px/1.2 var(--font-display); color: var(--muted); cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.conv-list { display: grid; }
+.conv-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--screen-line); }
+.conv-row:first-child { border-top: 0; }
+.conv-row .ro-num { font-size: clamp(20px, 5.6vw, 26px); }
+.conv-row .ro-label { text-align: right; }
+
+/* Weight & balance */
+.wb-ac { padding: 12px 14px; display: grid; gap: 6px; }
+.wb-ac label { font-weight: 500; font-size: 15px; }
+.wb-ac .sel { display: flex; }
+.wb-ac .sel select { width: 100%; color: var(--ink); font-size: 16px; padding: 9px 30px 9px 10px; background: var(--surface-2); }
+.wb-ac p { margin: 0; font-size: 13px; color: var(--muted); }
+.wb-table { display: grid; }
+.wb-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 5.6em; align-items: center; gap: 2px 10px;
+  padding: 9px 14px; border-top: 1px solid var(--line);
+}
+.wb-row.head { border-top: 0; padding-block: 8px 6px; font: 700 10.5px/1.2 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.wb-row.total { background: var(--surface-2); font-weight: 600; border-radius: 0 0 10px 10px; }
+.wb-name { font-weight: 500; font-size: 15px; line-height: 1.3; min-width: 0; }
+.wb-name small { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; }
+.wb-name small .num { width: 5.4ch; font-size: 16px; padding: 3px 6px; }
+.wb-mom { text-align: right; font: 400 14px/1.2 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.wb-row.total .wb-mom { color: var(--ink); font-weight: 700; }
+.wb-row .control { justify-content: flex-end; }
+.wb-row .sfx { min-width: 2.4em; }
+.status { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px;
+  font: 700 13px/1.25 var(--font-display); border: 1px solid; background: var(--surface);
+}
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.pill.good { color: var(--good); }
+.pill.bad { color: var(--bad); }
+.pill.neutral { color: var(--muted); }
+
+.foot { font-size: 13px; color: var(--muted); display: grid; gap: 6px; max-width: 70ch; }
+.foot p { margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .ro-num { transition: color .2s; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#home" aria-label="E6B Flight Computer, all calculators">
+      <svg viewBox="0 0 512 512" aria-hidden="true">
+        <rect width="512" height="512" rx="110" fill="#0B1117"/>
+        <circle cx="256" cy="256" r="196" fill="#16202A" stroke="#3A4A58" stroke-width="10"/>
+        <path d="M256 256 L376 136" stroke="#FF5CD6" stroke-width="26" stroke-linecap="round"/>
+        <path d="M256 256 L198 150" stroke="#45CFFF" stroke-width="22" stroke-linecap="round"/>
+        <path d="M198 150 L376 136" stroke="#FFB02E" stroke-width="16" stroke-linecap="round" stroke-dasharray="2 30"/>
+        <circle cx="256" cy="256" r="26" fill="#0B1117" stroke="#E6EDF2" stroke-width="10"/>
+      </svg>
+      <div><b>E6B</b><br><span>Flight computer</span></div>
+    </a>
+    <a class="back" href="#home">&lsaquo; All calculators</a>
+  </div>
+</header>
+
+<main class="shell">
+  <nav class="index" id="index" aria-label="Calculators"></nav>
+  <section class="calc" id="calc" aria-live="polite"></section>
+</main>
+
+<script>
+/* Weight & balance data converted from the original app's aircraft.xml (lb, inches, US gallons). */
+const AIRCRAFT = [{"n":"Bonanza","a":[{"n":"Beechcraft A36","va":136,"vu":0,"wmax":3600,"w":2450,"arm":79.7,"t":[["Fuel Tank",74,75,1],["Tip Tank",40,89.5,1]],"s":[["Pilot Seat",86],["Front Right Seat",86],["Rear Seats",124],["Baggage",140]],"r":[["Normal",[[2300,76.2],[2700,75],[3600,83],[3600,86.7],[2300,86.7]]],["Utility",[[2300,78.5],[2800,78.5],[2800,81],[2300,81]]]]},{"n":"Beechcraft F33A","va":136,"vu":0,"wmax":3600,"w":2380,"arm":81.63,"t":[["Fuel Tank",74,75,1],["Tip Tank",40,89.5,1]],"s":[["Pilot Seat",86],["Front Right Seat",86],["Rear Seats",124],["Baggage",140]],"r":[["Normal",[[2300,76.2],[2700,75],[3600,83],[3600,86.7],[2300,86.7]]],["Utility",[[2300,78.5],[2800,78.5],[2800,81],[2300,81]]]]},{"n":"Beechcraft V35B","va":134,"vu":0,"wmax":3400,"w":2295,"arm":78.5,"t":[["Fuel Tank",74,75,1]],"s":[["Pilot Seat",85],["Front Right Seat",85],["Rear Seats",121],["Baggage",150]],"r":[["Normal",[[2200,77],[2900,77],[3400,82.1],[3400,84.4],[3000,85.7],[2200,85.7]]]]}]},{"n":"Cessna","a":[{"n":"C152","va":104,"vu":0,"wmax":1670,"w":1150,"arm":30,"t":[["Fuel Tank",24.5,42.2,1]],"s":[["Pilot Seat",39],["Front Right Seat",39],["Baggage Area 1",64],["Baggage Area 2",84]],"r":[["Normal",[[1000,31],[1350,31],[1670,32.65],[1670,36.5],[1000,36.5]]]]},{"n":"C162","va":100,"vu":0,"wmax":1320,"w":894,"arm":132,"t":[["Fuel Tank",24,143,1]],"s":[["Pilot Seat",142],["Front Right Seat",142],["Baggage Area",172]],"r":[["Normal",[[800,132.05],[1050,132.05],[1320,134.45],[1320,136.85],[800,136.85]]]]},{"n":"C172B","va":115,"vu":1,"wmax":2200,"w":1350,"arm":39.4,"t":[["Fuel Tank",37,47.7,1]],"s":[["Pilot Seat",35.9],["Front Right Seat",35.9],["Rear Seats",70],["Baggage Area 1",95]],"r":[["Utility",[[1300,36.4],[1733,36.4],[1900,38],[1900,40.3],[1300,40.3]]],["Normal",[[1300,36.4],[1733,36.4],[2200,40.8],[2200,46.4],[1300,46.4]]]]},{"n":"C172H","va":122,"vu":1,"wmax":2300,"w":1420,"arm":37.1,"t":[["Fuel Tank",38,48,1]],"s":[["Pilot Seat",36],["Front Right Seat",36],["Rear Seats",70],["Baggage Area 1",95]],"r":[["Utility",[[1400,35],[1950,35],[2000,35.5],[2000,40.5],[1400,40.5]]],["Normal",[[1400,35],[1950,35],[2300,38.5],[2300,47.3],[1400,47.3]]]]},{"n":"C172L","va":109,"vu":1,"wmax":2300,"w":1475,"arm":39.8,"t":[["Fuel Tank",38,48,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",73],["Baggage Area",95]],"r":[["Utility",[[1400,35],[1950,35],[2000,35.5],[2000,40.5],[1400,40.5]]],["Normal",[[1400,35],[1950,35],[2300,38.5],[2300,47.3],[1400,47.3]]]]},{"n":"C172M","va":96,"vu":1,"wmax":2300,"w":1475,"arm":39.6,"t":[["Fuel Tank",38,48,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",73],["Baggage Area 1",95]],"r":[["Utility",[[1400,35],[1950,35],[2000,35.5],[2000,40.5],[1400,40.5]]],["Normal",[[1400,35],[1950,35],[2300,38.5],[2300,47.3],[1400,47.3]]]]},{"n":"C172N","va":96,"vu":0,"wmax":2300,"w":1480,"arm":39.1,"t":[["Fuel Tank",40,47.9,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",73],["Baggage Area 1",95],["Baggage Area 2",123]],"r":[["Utility",[[1400,35],[1950,35],[2000,35.5],[2000,40.5],[1400,40.5]]],["Normal",[[1400,35],[1950,35],[2300,38.5],[2300,47.3],[1400,47.3]]]]},{"n":"C172P","va":99,"vu":0,"wmax":2300,"w":1480,"arm":38.9,"t":[["Fuel Tank",40,48,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",73],["Baggage Area",123]],"r":[["Utility",[[1400,35],[1950,35],[2000,35.5],[2000,40.5],[1400,40.5]]],["Normal",[[1400,35],[1950,35],[2300,38.5],[2300,47.3],[1400,47.3]]]]},{"n":"C172R","va":99,"vu":0,"wmax":2450,"w":1640,"arm":39.3,"t":[["Fuel Tank",56,48,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",73],["Baggage Area 1",95],["Baggage Area 2",123]],"r":[["Utility",[[1500,35],[1950,35],[2100,36.5],[2100,40.5],[1500,40.5]]],["Normal",[[1500,35],[1950,35],[2450,40],[2450,47.3],[1500,47.3]]]]},{"n":"C172S","va":102,"vu":0,"wmax":2550,"w":1670,"arm":40,"t":[["Fuel Tank",56,48,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",73],["Baggage Area 1",95],["Baggage Area 2",123]],"r":[["Utility",[[1500,35],[1950,35],[2200,37.5],[2200,40.5],[1500,40.5]]],["Normal",[[1500,35],[1950,35],[2550,41],[2550,47.3],[1500,47.3]]]]},{"n":"C177B","va":101,"vu":0,"wmax":2500,"w":1625,"arm":103.4,"t":[["Fuel Tank",60,112,1]],"s":[["Pilot Seat",93],["Front Right Seat",93],["Rear Seats",134],["Baggage Area",162]],"r":[["Normal",[[1600,101],[2000,101],[2250,102.2],[2500,106.7],[2500,114.5],[1600,114.5]]]]},{"n":"C180","va":106,"vu":0,"wmax":2550,"w":1760,"arm":40,"t":[["Fuel Tank",55,48,1]],"s":[["Pilot Seat",36],["Front Right Seat",36],["Rear Seats",48],["Baggage Area",95]],"r":[["Normal",[[1600,35],[2050,35],[2550,39.5],[2550,45.8],[1600,45.8]]]]},{"n":"C182R","va":111,"vu":0,"wmax":3100,"w":1880,"arm":37.2,"t":[["Fuel Tank",88,46.5,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Rear Seats",74],["Baggage Area 1",100],["Baggage Area 2",122]],"r":[["Normal",[[1700,33],[2250,33],[3100,41],[3100,46],[1700,46]]]]},{"n":"C185D","va":118,"vu":0,"wmax":3200,"w":1740,"arm":36.5,"t":[["Fuel Tank",81,48,1]],"s":[["Pilot Seat",36],["Front Right Seat",36],["Middle Seats",63],["Rear Seats",94],["Baggage Area",115]],"r":[["Normal",[[1600,34.5],[2100,34.5],[3200,41],[3200,46.5],[1600,46.5]]]]},{"n":"C206H","va":123,"vu":0,"wmax":3600,"w":2220,"arm":40.75,"t":[["Fuel Tank",92,46.5,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Cemter Seats",70],["Rear Seats",100],["Baggage Area",127]],"r":[["Normal",[[2200,33],[2550,33],[3600,42.2],[3600,47.3],[3600,49.7],[2200,49.7]]]]},{"n":"C210M Turbo","va":119,"vu":0,"wmax":3800,"w":2340,"arm":42.7,"t":[["Fuel Tank",89,43,1]],"s":[["Pilot Seat",37],["Front Right Seat",37],["Middle Seats",69],["Rear Seats",101],["Baggage Area",138]],"r":[["Normal",[[2200,37],[3000,37],[3800,42.5],[3800,53],[2200,53]]]]},{"n":"C421","va":160,"vu":0,"wmax":6800,"w":4300,"arm":147.5,"t":[["Fuel Tank",100,152,1],["Fuel Tank",70,164,1]],"s":[["Pilot Seat",137],["Front Right Seat",137],["Middle Seats",175],["Rear Seats",215],["Baggage Area 1",71],["Baggage Area 2",186],["Baggage Area 3",250]],"r":[["Normal",[[4000,144.3],[5200,144.3],[6800,151.9],[6800,155.5],[6400,155.7],[4000,155.7]]]]}]},{"n":"Cirrus","a":[{"n":"SR20","va":131,"vu":0,"wmax":3000,"w":2150,"arm":141.7,"t":[["Fuel Tank",56,153.8,1]],"s":[["Pilot Seat",144],["Front Right Seat",144],["Rear Seats",180],["Baggage Area 1",208]],"r":[["Normal",[[2110,138.7],[2694,141],[3000,144.1],[3000,148],[2900,148.1],[2570,147.4],[2110,144.6]]]]},{"n":"SR20 G3","va":130,"vu":0,"wmax":3050,"w":2050,"arm":139.7,"t":[["Fuel Tank",56,153.8,1]],"s":[["Pilot Seat",144],["Front Right Seat",144],["Rear Seats",180],["Baggage Area 1",208]],"r":[["Normal",[[2100,137.8],[2700,139.1],[3050,140.7],[3050,148.1],[2100,148.1]]]]},{"n":"SR22","va":133,"vu":0,"wmax":3400,"w":2310,"arm":140.2,"t":[["Fuel Tank",81,154.9,1]],"s":[["Pilot Seat",144],["Front Right Seat",144],["Rear Seats",180],["Baggage Area 1",208]],"r":[["Normal",[[2100,137.8],[2700,139.1],[3210,141.4],[3400,142.3],[3400,148.1],[2100,148.1]]],["Landing",[[3210,141.4],[3400,142.3],[3400,142.7]]]]},{"n":"SR22 G3","va":133,"vu":0,"wmax":3400,"w":2250,"arm":139.2,"t":[["Fuel Tank",92,154.9,1]],"s":[["Pilot Seat",144],["Front Right Seat",144],["Rear Seats",180],["Baggage Area 1",208]],"r":[["Normal",[[2100,137.8],[2700,139.1],[3210,141.4],[3400,142.3],[3400,148.1],[2100,148.1]]]]}]},{"n":"Mooney","a":[{"n":"M20B","va":127,"vu":1,"wmax":2450,"w":1600,"arm":44.8,"t":[["Fuel Tank",48,48.4,1]],"s":[["Pilot Seat",44],["Front Right Seat",44],["Rear Seats",70],["Baggage 1",96]],"r":[["Normal",[[1775,42],[2040,42],[2450,47],[2450,50],[1775,50]]]]},{"n":"M20C","va":132,"vu":1,"wmax":2575,"w":1600,"arm":44.5,"t":[["Fuel Tank",48,48.4,1]],"s":[["Pilot Seat",44],["Front Right Seat",44],["Rear Seats",70],["Baggage 1",96]],"r":[["Normal",[[1775,42],[2100,42],[2575,46.5],[2575,49],[1775,49]]]]},{"n":"M20E","va":132,"vu":1,"wmax":2575,"w":1600,"arm":44.5,"t":[["Fuel Tank",48,48.4,1]],"s":[["Pilot Seat",44],["Front Right Seat",44],["Rear Seats",70],["Baggage 1",96]],"r":[["Normal",[[1800,42],[2100,42],[2575,46.5],[2575,49],[1800,49]]]]},{"n":"M20J","va":118,"vu":0,"wmax":2470,"w":1975,"arm":47.1,"t":[["Fuel Tank",64,48.4,1]],"s":[["Pilot Seat",36],["Front Right Seat",36],["Rear Seats",70],["Baggage 1",96],["Baggage 2",119]],"r":[["Normal",[[1800,41],[2250,41],[2470,41.8],[2740,43.8],[2740,50.1],[1800,50.1]]]]},{"n":"M20J (2900lb)","va":118,"vu":0,"wmax":2470,"w":1975,"arm":47.1,"t":[["Fuel Tank",64,48.4,1]],"s":[["Pilot Seat",36],["Front Right Seat",36],["Rear Seats",70],["Baggage 1",96],["Baggage 2",119]],"r":[["Normal",[[1800,41],[2250,41],[2470,41.8],[2900,45],[2900,50.1],[1800,50.1]]]]}]},{"n":"Piper","a":[{"n":"PA-28-140 Cruiser","va":112,"vu":0,"wmax":2150,"w":1395,"arm":85.7,"t":[["Fuel Tank",50,95,1]],"s":[["Pilot Seat",85.5],["Front Right Seat",85.5],["Rear Seats",117],["Baggage",117]],"r":[["Utility",[[1300,84],[1650,84],[1950,85.8],[1950,86.5],[1300,86.5]]],["Normal",[[1300,84],[1650,84],[1970,85.9],[2150,88.4],[2150,95.9],[1300,95.9]]]]},{"n":"PA-28-180 Archer","va":110,"vu":0,"wmax":2450,"w":1515,"arm":86.7,"t":[["Fuel Tank",50,95,1]],"s":[["Pilot Seat",80.5],["Front Right Seat",80.5],["Rear Seats",118],["Baggage",142]],"r":[["Utility",[[1400,82],[1950,82],[1950,86.5],[1400,86.5]]],["Normal",[[1400,82],[2050,82],[2450,87.4],[2450,93],[1400,93]]]]},{"n":"PA-28R-180 Arrow","va":134,"vu":0,"wmax":2500,"w":1560,"arm":85.5,"t":[["Fuel Tank",48,95,1]],"s":[["Pilot Seat",85.5],["Front Right Seat",85.5],["Rear Seats",118],["Baggage",142]],"r":[["Normal",[[1400,81],[1925,81],[2500,91],[2500,95.9],[1400,95.9]]]]},{"n":"PA-28R-200 Arrow II","va":131,"vu":0,"wmax":2650,"w":1675,"arm":83.9,"t":[["Fuel Tank",50,95,1]],"s":[["Pilot Seat",85.5],["Front Right Seat",85.5],["Rear Seats",118],["Baggage",143]],"r":[["Normal",[[1500,80],[1800,80],[2300,82],[2650,87.3],[2650,93],[1500,93]]]]},{"n":"PA-46-310P","va":135,"vu":0,"wmax":4100,"w":2815,"arm":134.1,"t":[["Fuel Tank",90,151.3,1]],"s":[["Pilot Seat",135.5],["Front Right Seat",135.5],["Middle Seats",177],["Rear Seats",219],["Baggage",249]],"r":[["Normal",[[2200,130.7],[2450,130.7],[3680,136.1],[4100,143.3],[4100,147.1],[2200,147.1]]]]}]},{"n":"Socata","a":[{"n":"TB200 Tobago","va":122,"vu":0,"wmax":2535,"w":1642,"arm":39,"t":[["Fuel Tank",53.8,42.3,1]],"s":[["Pilot Seat",45.9],["Front Right Seat",45.9],["Rear Seats",82.4],["Baggage 1",102.3]],"r":[["Normal",[[1600,37.3],[2138,37.3],[2359,39.8],[2535,42.6],[2535,47.4],[1600,47.4]]]]}]}];
+</script>
+<script>
+'use strict';
+/* ------------------------------------------------------------------
+   E6B Flight Computer (web). The math is ported from the open-source
+   E6B app by William Woody (GPL-3.0): iOS/E6BCalcEngine.
+   ------------------------------------------------------------------ */
+
+const D2R = Math.PI / 180, R2D = 180 / Math.PI;
+const ok = (...xs) => xs.every(Number.isFinite);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* Units: factor to the SI base, same constants as the original Units/*.m files */
+const UNITS = {
+  distance: { ft: { f: 0.3048, dp: 0, n: 'ft', l: 'Feet' }, sm: { f: 5280 * 0.3048, dp: 1, n: 'sm', l: 'Statute miles' }, nm: { f: 1852, dp: 1, n: 'nm', l: 'Nautical miles' }, m: { f: 1, dp: 0, n: 'm', l: 'Meters' }, km: { f: 1000, dp: 2, n: 'km', l: 'Kilometers' } },
+  speed: { kt: { f: 1852 / 3600, dp: 1, n: 'kt', l: 'Knots' }, mph: { f: 5280 * 0.3048 / 3600, dp: 1, n: 'mph', l: 'Miles per hour' }, kmh: { f: 1000 / 3600, dp: 1, n: 'km/h', l: 'Kilometers per hour' }, fps: { f: 0.3048, dp: 1, n: 'ft/s', l: 'Feet per second' }, ms: { f: 1, dp: 1, n: 'm/s', l: 'Meters per second' } },
+  weight: { lb: { f: 1 / 2.20462234, dp: 1, n: 'lb', l: 'Pounds' }, kg: { f: 1, dp: 1, n: 'kg', l: 'Kilograms' }, st: { f: 14 * 0.45359237, dp: 2, n: 'st', l: 'Stone' } },
+  temp: { C: { dp: 1, n: '°C', l: 'Celsius' }, F: { dp: 1, n: '°F', l: 'Fahrenheit' }, K: { dp: 2, n: 'K', l: 'Kelvin' } },
+  volume: { gal: { f: 3.785411784, dp: 1, n: 'gal', l: 'US gallons' }, L: { f: 1, dp: 1, n: 'L', l: 'Liters' }, igal: { f: 4.54609, dp: 1, n: 'imp gal', l: 'Imperial gallons' }, qt: { f: 3.785411784 / 4, dp: 1, n: 'qt', l: 'US quarts' } },
+  burn: { gph: { f: 3.785411784, dp: 1, n: 'gal/h', l: 'US gallons per hour' }, lph: { f: 1, dp: 1, n: 'L/h', l: 'Liters per hour' }, igph: { f: 4.54609, dp: 1, n: 'imp gal/h', l: 'Imperial gallons per hour' } },
+  pressure: { inHg: { f: 3.386389, dp: 2, n: 'inHg', l: 'Inches of mercury' }, hPa: { f: 0.1, dp: 1, n: 'hPa', l: 'Hectopascals (millibars)' }, kPa: { f: 1, dp: 2, n: 'kPa', l: 'Kilopascals' } },
+  length: { in: { f: 2.54, dp: 2, n: 'in', l: 'Inches' }, cm: { f: 1, dp: 2, n: 'cm', l: 'Centimeters' } },
+};
+function toBase(kind, u, v) {
+  if (kind === 'temp') return u === 'F' ? (v - 32) * 5 / 9 : u === 'K' ? v - 273.15 : v;
+  return v * UNITS[kind][u].f;
+}
+function fromBase(kind, u, v) {
+  if (kind === 'temp') return u === 'F' ? v * 9 / 5 + 32 : u === 'K' ? v + 273.15 : v;
+  return v / UNITS[kind][u].f;
+}
+const conv = (kind, from, to, v) => from === to ? v : fromBase(kind, to, toBase(kind, from, v));
+
+/* Number formatting */
+function fmtNum(x, dp) {
+  if (!Number.isFinite(x)) return '—';
+  const r = Number(x.toFixed(dp));
+  return (Object.is(r, -0) ? 0 : r).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+function plain(x, dp) { const r = Number(x.toFixed(dp)); return String(Object.is(r, -0) ? 0 : r); }
+function fixAngle(x) { const n = Math.floor(x / 360); x -= n * 360; if (x <= 0) x += 360; if (x > 360) x -= 360; return x; }
+function deg(v) { return String(Math.round(fixAngle(v)) % 360 || 360).padStart(3, '0') + '°'; }
+function hms(hours) {
+  if (!Number.isFinite(hours) || hours < 0) return '—';
+  let s = Math.round(hours * 3600);
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+function num(t) {
+  if (t == null) return NaN;
+  t = String(t).trim().replace(',', '.').replace(/^\+/, '');
+  if (t === '' || t === '-' || t === '.') return NaN;
+  const x = Number(t);
+  return Number.isFinite(x) ? x : NaN;
+}
+
+/* ---------------- Saved values (per device) ---------------- */
+const KEYS = {
+  tc: { kind: 'angle', ref: 'T', t: '045' },
+  dist: { kind: 'distance', u: 'nm', t: '120' },
+  tas: { kind: 'speed', u: 'kt', t: '110' },
+  wd: { kind: 'angle', ref: 'T', t: '180' },
+  ws: { kind: 'speed', u: 'kt', t: '15' },
+  burn: { kind: 'burn', u: 'gph', t: '8.5' },
+  mv: { kind: 'variation', t: '3', d: 'E' },
+  vaMax: { kind: 'speed', u: 'kt', t: '105' },
+  wMax: { kind: 'weight', u: 'lb', t: '2550' },
+  wCur: { kind: 'weight', u: 'lb', t: '2200' },
+  indAlt: { kind: 'distance', u: 'ft', t: '850' },
+  altim: { kind: 'pressure', u: 'inHg', t: '30.02' },
+  oat: { kind: 'temp', u: 'C', t: '32' },
+  pa: { kind: 'distance', u: 'ft', t: '4500' },
+  oatAlt: { kind: 'temp', u: 'C', t: '18' },
+  cas: { kind: 'speed', u: 'kt', t: '105' },
+  th: { kind: 'angle', ref: 'T', t: '052' },
+  gs: { kind: 'speed', u: 'kt', t: '104' },
+  rwy: { kind: 'runway', t: '15' },
+  gTemp: { kind: 'temp', u: 'C', t: '32' },
+  dew: { kind: 'temp', u: 'C', t: '21' },
+  elev: { kind: 'distance', u: 'ft', t: '850' },
+  tHdg: { kind: 'angle', ref: 'T', t: '045' },
+  mHdg: { kind: 'angle', ref: 'M', t: '042' },
+  dTrav: { kind: 'distance', u: 'nm', t: '135' },
+  time: { kind: 'time', h: '1', m: '10' },
+  fuel: { kind: 'volume', u: 'gal', t: '40' },
+  fuelUsed: { kind: 'volume', u: 'gal', t: '10' },
+  fwVol: { kind: 'volume', u: 'gal', t: '40' },
+  fwWt: { kind: 'weight', u: 'lb', t: '240' },
+};
+const STORE = 'e6b-web.v1';
+let S = { v: {}, ou: {}, wb: { ac: 'C172S', d: {} }, conv: { kind: 'distance', t: '100', u: 'nm' } };
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+  if (saved && typeof saved === 'object') S = { ...S, ...saved, wb: { ...S.wb, ...(saved.wb || {}) }, conv: { ...S.conv, ...(saved.conv || {}) } };
+} catch (e) { /* storage unavailable: run with defaults */ }
+let saveTimer = 0;
+function flush() { clearTimeout(saveTimer); try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); }
+window.addEventListener('pagehide', flush);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+function cur(k) { return { ...KEYS[k], ...(S.v[k] || {}) }; }
+function setV(k, patch) { S.v[k] = { ...(S.v[k] || {}), ...patch }; save(); }
+function get(k, unit) {
+  const s = cur(k);
+  switch (s.kind) {
+    case 'angle': case 'runway': return num(s.t);
+    case 'variation': { const x = num(s.t); return s.d === 'W' ? x : -x; }   /* +W / -E, as in the original */
+    case 'time': {
+      const h = num(s.h), m = num(s.m);
+      if (Number.isNaN(h) && Number.isNaN(m)) return NaN;
+      return (Number.isNaN(h) ? 0 : h) + (Number.isNaN(m) ? 0 : m) / 60;
+    }
+    default: { const x = num(s.t); return Number.isNaN(x) ? NaN : conv(s.kind, s.u, unit, x); }
+  }
+}
+/* Copy a result into a shared field so the next calculator starts with it */
+function carry(k, value, fromUnit) {
+  if (!Number.isFinite(value)) return;
+  const s = cur(k);
+  if (s.kind === 'angle') { setV(k, { t: String(Math.round(fixAngle(value)) % 360 || 360).padStart(3, '0') }); return; }
+  if (s.kind === 'time') { const h = Math.floor(value); setV(k, { h: String(h), m: plain((value - h) * 60, 1) }); return; }
+  const x = conv(s.kind, fromUnit, s.u, value);
+  setV(k, { t: plain(x, UNITS[s.kind][s.u].dp) });
+}
+
+/* ---------------- Flight math (ported from E6BCalcEngine) ---------------- */
+/* FindHeading: heading and ground speed to hold a true course (CMFindHeadingCalculation.m) */
+function findHeading(tc, tas, wd, ws) {
+  const tcr = tc * D2R, wdr = (wd + 180) * D2R;       /* wind vector points where the wind blows to */
+  const sc = ws * Math.sin(tcr - wdr) / tas;
+  if (!(sc >= -1 && sc <= 1)) return null;           /* crosswind component stronger than TAS */
+  const ca = tcr + Math.asin(sc);
+  const ax = Math.sin(wdr) * ws + Math.sin(ca) * tas;
+  const ay = Math.cos(wdr) * ws + Math.cos(ca) * tas;
+  if (ax * Math.sin(tcr) + ay * Math.cos(tcr) <= 0) return null;   /* headwind stronger than TAS */
+  return { th: fixAngle(ca * R2D), gs: Math.hypot(ax, ay) };
+}
+function stationPressure(alt, elevFt) {   /* NWS altimeter-setting formula, inHg */
+  const e = Math.pow(alt, 0.1903) - 1.313e-5 * elevFt;
+  return e > 0 ? Math.pow(e, 5.255) : NaN;
+}
+function densityAlt(pInHg, tK) {
+  return 145442.156 * (1 - Math.pow((pInHg / 29.92) / (tK / 288.15), 0.234969));
+}
+
+const FUELS = [
+  { n: '100LL avgas', f: 6.0 },
+  { n: 'Jet A / JP-8', f: 6.7 },
+  { n: 'JP-4', f: 6.6 },
+  { n: 'Kerosene', f: 7.0 },
+  { n: 'Oil', f: 7.5 },
+];
+
+/* ---------------- Calculators ---------------- */
+const GROUPS = ['Planning', 'Altitude', 'Wind Triangle', 'Magnetic Variation', 'Time · Distance · Speed', 'Fuel', 'Conversions', 'Weight & Balance'];
+const NEED = 'Fill in every field to see results.';
+
+const CALCS = [
+  {
+    id: 'planner', group: 'Planning', name: 'Flight Planner', sub: 'Heading, ground speed, time and fuel for one leg',
+    desc: 'Plan a leg in one place: the heading to fly, ground speed, time en route and fuel, with magnetic course and heading.',
+    inputs: [['tc', 'True course'], ['dist', 'Distance'], ['tas', 'True airspeed'], ['wd', 'Wind direction', 'Direction the wind blows from'], ['ws', 'Wind speed'], ['burn', 'Fuel burn'], ['mv', 'Magnetic variation', 'From the sectional isogonic line']],
+    outputs: [
+      { l: 'True heading', kind: 'angle', to: 'th' },
+      { l: 'Magnetic course', kind: 'angle' },
+      { l: 'Magnetic heading', kind: 'angle' },
+      { l: 'Ground speed', kind: 'speed', u: 'kt', to: 'gs' },
+      { l: 'Time en route', kind: 'time' },
+      { l: 'Fuel required', kind: 'volume', u: 'gal' },
+    ],
+    calc(g) {
+      const tc = g('tc'), ed = g('dist', 'nm'), tas = g('tas', 'kt'), wd = g('wd'), ws = g('ws', 'kt'), fb = g('burn', 'gph'), mv = g('mv');
+      if (!ok(tc, ed, tas, wd, ws, fb, mv)) return null;
+      if (tas <= 0) return { error: 'Enter a true airspeed above zero.' };
+      const r = findHeading(tc, tas, wd, ws);
+      if (!r) return { error: 'The wind is too strong for this airspeed to hold that course.' };
+      const ete = ed / r.gs;
+      return [r.th, fixAngle(tc + mv), fixAngle(r.th + mv), r.gs, ete, fb * ete];
+    },
+    tri: (g, o) => ({ th: o ? o[0] : NaN, tas: g('tas', 'kt'), wd: g('wd'), ws: g('ws', 'kt'), su: cur('tas').u }),
+    math: `<p>The wind correction angle comes from the wind triangle:</p>
+      <span class="f">WCA = asin( wind speed × sin(wind dir − course) ÷ TAS )</span>
+      <p>True heading = course + WCA. Ground speed is the length of the air vector plus the wind vector. Time = distance ÷ ground speed, fuel = burn × time.</p>
+      <p>Magnetic = true + west variation, or true − east variation ("east is least, west is best").</p>
+      <p>Fuel required doesn't include taxi, climb or the VFR reserve (30 minutes day, 45 minutes night).</p>`,
+  },
+  {
+    id: 'va', group: 'Planning', name: 'Va for Weight', sub: 'Maneuvering speed at your current weight',
+    desc: 'Va gets lower as the airplane gets lighter. Enter the book Va at max gross weight and your current weight.',
+    inputs: [['vaMax', 'Va at max gross weight'], ['wMax', 'Max gross weight'], ['wCur', 'Current weight']],
+    outputs: [{ l: 'Va at current weight', kind: 'speed', u: 'kt' }],
+    calc(g) {
+      const va = g('vaMax', 'kt'), mw = g('wMax', 'lb'), cw = g('wCur', 'lb');
+      if (!ok(va, mw, cw)) return null;
+      if (mw <= 0 || cw < 0) return { error: 'Weights must be above zero.' };
+      return [va * Math.sqrt(cw / mw)];
+    },
+    math: `<span class="f">Va(current) = Va(max) × √( current weight ÷ max weight )</span>
+      <p>A lighter airplane accelerates more for the same gust or control input, so it reaches its load limit at a lower speed.</p>`,
+  },
+  {
+    id: 'density-altitude', group: 'Altitude', name: 'Density Altitude', sub: 'Density and pressure altitude from altimeter and OAT',
+    desc: 'Find density altitude and pressure altitude from your altimeter setting and the outside temperature.',
+    inputs: [['indAlt', 'Indicated altitude', 'Field elevation when on the ground'], ['altim', 'Altimeter setting'], ['oat', 'Outside air temperature']],
+    outputs: [{ l: 'Density altitude', kind: 'distance', u: 'ft' }, { l: 'Pressure altitude', kind: 'distance', u: 'ft', to: 'pa' }],
+    calc(g) {
+      const av = g('indAlt', 'ft'), bv = g('altim', 'inHg'), cv = g('oat', 'K');
+      if (!ok(av, bv, cv)) return null;
+      if (bv <= 0 || cv <= 0) return { error: 'Check the altimeter setting and temperature.' };
+      const ea = Math.pow(bv, 0.1903) - 1.313e-5 * av;
+      if (!(ea > 0)) return { error: 'Altitude is out of range.' };
+      const pr = Math.pow(ea, 5.255);
+      return [densityAlt(pr, cv), (Math.pow(29.92, 0.1903) - ea) / 1.313e-5];
+    },
+    math: `<p>1. Station pressure from the altimeter setting and altitude (NWS formula):</p>
+      <span class="f">P = ( alt^0.1903 − 0.00001313 × elevation )^5.255</span>
+      <p>2. Density altitude compares that pressure and the temperature to the standard day (29.92 inHg, 15 °C):</p>
+      <span class="f">DA = 145,442 × ( 1 − ( (P ÷ 29.92) ÷ (T ÷ 288.15) )^0.235 )</span>
+      <p>3. Pressure altitude runs step 1 backward with 29.92 inHg. Rule of thumb: DA rises about 120 ft for every 1 °C above standard.</p>`,
+  },
+  {
+    id: 'true-airspeed', group: 'Altitude', name: 'True Airspeed', sub: 'TAS and Mach from calibrated airspeed',
+    desc: 'Find true airspeed, Mach number and density altitude from pressure altitude, outside temperature and calibrated airspeed.',
+    inputs: [['pa', 'Pressure altitude'], ['oatAlt', 'Outside air temperature', 'At altitude'], ['cas', 'Calibrated airspeed']],
+    outputs: [{ l: 'True airspeed', kind: 'speed', u: 'kt', to: 'tas' }, { l: 'Mach number', kind: 'mach' }, { l: 'Density altitude', kind: 'distance', u: 'ft' }],
+    calc(g) {
+      const av = g('pa', 'ft'), bv = g('oatAlt', 'K'), cv = g('cas', 'kt');
+      if (!ok(av, bv, cv)) return null;
+      if (bv <= 0) return { error: 'Temperature is below absolute zero.' };
+      const p = stationPressure(29.92, av);
+      if (!Number.isFinite(p)) return { error: 'Pressure altitude is out of range.' };
+      let tmp = cv / 661.4788; tmp = tmp * tmp / 5 + 1;
+      const qc = (Math.pow(tmp, 3.5) - 1) * 29.92126;              /* pitot impact pressure */
+      const m = Math.sqrt(5 * (Math.pow(qc / p + 1, 2 / 7) - 1));     /* Mach */
+      const ts = 661.4788 * m * Math.sqrt(bv / 288.15);
+      return [ts, m, densityAlt(p, bv)];
+    },
+    math: `<p>The airspeed indicator measures impact pressure in the pitot tube. Working backward:</p>
+      <span class="f">qc = ( (1 + (CAS ÷ 661.48)² ÷ 5)^3.5 − 1 ) × 29.92</span>
+      <span class="f">Mach = √( 5 × ( (qc ÷ P + 1)^(2/7) − 1 ) )</span>
+      <span class="f">TAS = Mach × 661.48 kt × √( T ÷ 288.15 )</span>
+      <p>661.48 kt is the speed of sound on a standard day at sea level. Rule of thumb: TAS is about 2% above CAS per 1,000 ft.</p>`,
+  },
+  {
+    id: 'required-cas', group: 'Altitude', name: 'Required CAS', sub: 'Calibrated airspeed for a target TAS',
+    desc: 'Find the calibrated airspeed to fly for a desired true airspeed at your altitude and temperature.',
+    inputs: [['pa', 'Pressure altitude'], ['oatAlt', 'Outside air temperature', 'At altitude'], ['tas', 'True airspeed']],
+    outputs: [{ l: 'Calibrated airspeed', kind: 'speed', u: 'kt', to: 'cas' }, { l: 'Mach number', kind: 'mach' }, { l: 'Density altitude', kind: 'distance', u: 'ft' }],
+    calc(g) {
+      const av = g('pa', 'ft'), bv = g('oatAlt', 'K'), cv = g('tas', 'kt');
+      if (!ok(av, bv, cv)) return null;
+      if (bv <= 0) return { error: 'Temperature is below absolute zero.' };
+      const p = stationPressure(29.92, av);
+      if (!Number.isFinite(p)) return { error: 'Pressure altitude is out of range.' };
+      const m = cv / Math.sqrt(bv / 288.15) / 661.4788;
+      const qc = (Math.pow(m * m / 5 + 1, 3.5) - 1) * p;
+      const cs = 661.4788 * Math.sqrt(5 * (Math.pow(qc / 29.92126 + 1, 2 / 7) - 1));
+      return [cs, m, densityAlt(p, bv)];
+    },
+    math: `<p>The True Airspeed calculation run in reverse: TAS gives Mach at this temperature, Mach and static pressure give impact pressure, and impact pressure gives the CAS a standard-day airspeed indicator would show.</p>`,
+  },
+  {
+    id: 'cloud-base', group: 'Altitude', name: 'Cloud Base', sub: 'Estimated cloud base from the temperature/dew point spread',
+    desc: 'Estimate the cloud base from the reported temperature, dew point and field elevation.',
+    inputs: [['gTemp', 'Temperature'], ['dew', 'Dew point'], ['elev', 'Field elevation']],
+    outputs: [{ l: 'Cloud base MSL', kind: 'distance', u: 'ft' }, { l: 'Cloud base AGL', kind: 'distance', u: 'ft' }],
+    calc(g) {
+      const t = g('gTemp', 'C'), d = g('dew', 'C'), e = g('elev', 'ft');
+      if (!ok(t, d, e)) return null;
+      if (d > t) return { error: 'Dew point can’t be higher than the temperature.' };
+      const agl = (t - d) * 400;
+      return [e + agl, agl];
+    },
+    math: `<span class="f">Cloud base AGL ≈ ( temperature − dew point in °C ) × 400 ft</span>
+      <p>Rising air cools faster than its dew point, so the spread closes about 2.5 °C every 1,000 ft. Where it reaches zero, clouds form. This works best for cumulus clouds on a mixed afternoon.</p>`,
+  },
+  {
+    id: 'track', group: 'Wind Triangle', name: 'Track & Ground Speed', sub: 'Where the wind actually takes you',
+    desc: 'From your true heading, true airspeed and the wind, find the true course you track over the ground and your ground speed.',
+    inputs: [['wd', 'Wind direction', 'Direction the wind blows from'], ['ws', 'Wind speed'], ['th', 'True heading'], ['tas', 'True airspeed']],
+    outputs: [{ l: 'True course (track)', kind: 'angle' }, { l: 'Ground speed', kind: 'speed', u: 'kt', to: 'gs' }],
+    calc(g) {
+      const wd = g('wd'), ws = g('ws', 'kt'), th = g('th'), tas = g('tas', 'kt');
+      if (!ok(wd, ws, th, tas)) return null;
+      const av = (wd + 180) * D2R, cv = th * D2R;
+      const ax = Math.sin(cv) * tas + Math.sin(av) * ws, ay = Math.cos(cv) * tas + Math.cos(av) * ws;
+      const gs = Math.hypot(ax, ay);
+      return [gs > 0 ? fixAngle(Math.atan2(ax, ay) * R2D) : NaN, gs];
+    },
+    tri: g => ({ th: g('th'), tas: g('tas', 'kt'), wd: g('wd'), ws: g('ws', 'kt'), su: cur('tas').u }),
+    math: `<p>Add two vectors: the airplane moving through the air (heading, TAS) and the air moving over the ground (wind). The sum is your track and ground speed.</p>
+      <span class="f">ground = air + wind</span>`,
+  },
+  {
+    id: 'heading', group: 'Wind Triangle', name: 'Heading for Course', sub: 'Wind correction to hold a course',
+    desc: 'From the wind, your true airspeed and the true course you want, find the true heading to fly and your ground speed.',
+    inputs: [['wd', 'Wind direction', 'Direction the wind blows from'], ['ws', 'Wind speed'], ['tc', 'True course'], ['tas', 'True airspeed']],
+    outputs: [{ l: 'True heading', kind: 'angle', to: 'th' }, { l: 'Ground speed', kind: 'speed', u: 'kt', to: 'gs' }],
+    calc(g) {
+      const wd = g('wd'), ws = g('ws', 'kt'), tc = g('tc'), tas = g('tas', 'kt');
+      if (!ok(wd, ws, tc, tas)) return null;
+      if (tas <= 0) return { error: 'Enter a true airspeed above zero.' };
+      const r = findHeading(tc, tas, wd, ws);
+      if (!r) return { error: 'The wind is too strong for this airspeed to hold that course.' };
+      return [r.th, r.gs];
+    },
+    tri: (g, o) => ({ th: o ? o[0] : NaN, tas: g('tas', 'kt'), wd: g('wd'), ws: g('ws', 'kt'), su: cur('tas').u }),
+    math: `<span class="f">WCA = asin( wind speed × sin(wind dir − course) ÷ TAS )</span>
+      <p>Turn into the wind by the wind correction angle: true heading = course + WCA. Ground speed is the length of the resulting ground vector.</p>`,
+  },
+  {
+    id: 'wind', group: 'Wind Triangle', name: 'Wind Finder', sub: 'Actual wind from heading, track and speeds',
+    desc: 'Work out the actual wind from the track and ground speed your GPS shows and the heading and true airspeed you are flying.',
+    inputs: [['tc', 'True course (track)'], ['gs', 'Ground speed'], ['th', 'True heading'], ['tas', 'True airspeed']],
+    outputs: [{ l: 'Wind direction', kind: 'angle', to: 'wd' }, { l: 'Wind speed', kind: 'speed', u: 'kt', to: 'ws' }],
+    calc(g) {
+      const tc = g('tc'), gs = g('gs', 'kt'), th = g('th'), tas = g('tas', 'kt');
+      if (!ok(tc, gs, th, tas)) return null;
+      const ax = Math.sin(tc * D2R) * gs - Math.sin(th * D2R) * tas, ay = Math.cos(tc * D2R) * gs - Math.cos(th * D2R) * tas;
+      const ws = Math.hypot(ax, ay);
+      return [ws < 0.05 ? NaN : fixAngle(Math.atan2(ax, ay) * R2D + 180), ws];
+    },
+    tri: (g, o) => ({ th: g('th'), tas: g('tas', 'kt'), wd: o ? o[0] : NaN, ws: o ? o[1] : NaN, su: cur('tas').u }),
+    math: `<span class="f">wind = ground − air</span>
+      <p>Subtract the air vector (heading, TAS) from the ground vector (track, ground speed). The direction is reported as where the wind comes from, so 180° is added to the vector's direction.</p>`,
+  },
+  {
+    id: 'tas-for-course', group: 'Wind Triangle', name: 'Heading & TAS for Course', sub: 'Airspeed needed for a target ground speed',
+    desc: 'From the wind and the true course and ground speed you need, find the true heading and true airspeed to fly.',
+    inputs: [['wd', 'Wind direction', 'Direction the wind blows from'], ['ws', 'Wind speed'], ['tc', 'True course'], ['gs', 'Ground speed']],
+    outputs: [{ l: 'True heading', kind: 'angle', to: 'th' }, { l: 'True airspeed', kind: 'speed', u: 'kt', to: 'tas' }],
+    calc(g) {
+      const wd = g('wd'), ws = g('ws', 'kt'), tc = g('tc'), gs = g('gs', 'kt');
+      if (!ok(wd, ws, tc, gs)) return null;
+      const av = (wd + 180) * D2R, cv = tc * D2R;
+      const ax = Math.sin(cv) * gs - Math.sin(av) * ws, ay = Math.cos(cv) * gs - Math.cos(av) * ws;
+      const tas = Math.hypot(ax, ay);
+      return [tas > 0 ? fixAngle(Math.atan2(ax, ay) * R2D) : NaN, tas];
+    },
+    tri: (g, o) => ({ th: o ? o[0] : NaN, tas: o ? o[1] : NaN, wd: g('wd'), ws: g('ws', 'kt'), su: cur('gs').u }),
+    math: `<span class="f">air = ground − wind</span>
+      <p>Useful for timing an arrival or a rendezvous: it tells you what airspeed and heading give the ground speed you need.</p>`,
+  },
+  {
+    id: 'crosswind', group: 'Wind Triangle', name: 'Crosswind', sub: 'Crosswind and headwind for a runway',
+    desc: 'Enter the runway number and the reported wind to get the crosswind and headwind or tailwind components.',
+    inputs: [['rwy', 'Runway', '01 to 36'], ['wd', 'Wind direction', 'Tower and ATIS winds are magnetic'], ['ws', 'Wind speed']],
+    outputs: [{ l: 'Crosswind', kind: 'speed', u: 'kt', side: ['from the left', 'from the right'] }, { l: 'Headwind / tailwind', kind: 'speed', u: 'kt', side: ['headwind', 'tailwind'] }],
+    calc(g) {
+      const rw = g('rwy'), wd = g('wd'), ws = g('ws', 'kt');
+      if (!ok(rw, wd, ws)) return null;
+      if (rw < 1 || rw > 36) return { error: 'Enter a runway number from 1 to 36.' };
+      const r = (rw * 10 + 180 - wd) * D2R;
+      return [Math.sin(r) * ws, Math.cos(r) * ws];
+    },
+    xw: true,
+    math: `<p>Find the angle between the wind and the runway, then split the wind into two parts:</p>
+      <span class="f">crosswind = wind speed × sin(angle)</span>
+      <span class="f">headwind = wind speed × cos(angle)</span>
+      <p>Quick check: at 30° off the runway the crosswind is half the wind speed, at 45° about 70%, and at 60° about 90%.</p>`,
+  },
+  {
+    id: 'true-to-magnetic', group: 'Magnetic Variation', name: 'True to Magnetic', sub: 'Convert a true course or heading',
+    desc: 'Convert a true course or heading to magnetic.',
+    inputs: [['tHdg', 'True course or heading'], ['mv', 'Magnetic variation']],
+    outputs: [{ l: 'Magnetic course or heading', kind: 'angle' }],
+    calc(g) { const t = g('tHdg'), mv = g('mv'); return ok(t, mv) ? [fixAngle(t + mv)] : null; },
+    math: `<span class="f">magnetic = true + west variation − east variation</span><p>Memory aid: "east is least, west is best."</p>`,
+  },
+  {
+    id: 'magnetic-to-true', group: 'Magnetic Variation', name: 'Magnetic to True', sub: 'Convert a magnetic course or heading',
+    desc: 'Convert a magnetic course or heading to true.',
+    inputs: [['mHdg', 'Magnetic course or heading'], ['mv', 'Magnetic variation']],
+    outputs: [{ l: 'True course or heading', kind: 'angle' }],
+    calc(g) { const m = g('mHdg'), mv = g('mv'); return ok(m, mv) ? [fixAngle(m - mv)] : null; },
+    math: `<span class="f">true = magnetic − west variation + east variation</span>`,
+  },
+  {
+    id: 'speed', group: 'Time · Distance · Speed', name: 'Ground Speed', sub: 'Speed from distance and time',
+    desc: 'Find your speed from the distance covered and the time it took.',
+    inputs: [['dTrav', 'Distance traveled'], ['time', 'Elapsed time']],
+    outputs: [{ l: 'Ground speed', kind: 'speed', u: 'kt', to: 'gs' }],
+    calc(g) { const d = g('dTrav', 'nm'), t = g('time'); if (!ok(d, t)) return null; return t > 0 ? [d / t] : { error: 'Elapsed time must be above zero.' }; },
+    math: `<span class="f">speed = distance ÷ time</span>`,
+  },
+  {
+    id: 'distance', group: 'Time · Distance · Speed', name: 'Distance Traveled', sub: 'Distance from speed and time',
+    desc: 'Find the distance covered at a given speed over a given time.',
+    inputs: [['gs', 'Ground speed'], ['time', 'Elapsed time']],
+    outputs: [{ l: 'Distance traveled', kind: 'distance', u: 'nm' }],
+    calc(g) { const s = g('gs', 'kt'), t = g('time'); return ok(s, t) ? [s * t] : null; },
+    math: `<span class="f">distance = speed × time</span>`,
+  },
+  {
+    id: 'leg-time', group: 'Time · Distance · Speed', name: 'Time en Route', sub: 'Time for a leg from distance and speed',
+    desc: 'Find how long a leg will take at your ground speed.',
+    inputs: [['dist', 'Distance to travel'], ['gs', 'Ground speed']],
+    outputs: [{ l: 'Time en route', kind: 'time', to: 'time' }],
+    calc(g) { const d = g('dist', 'nm'), s = g('gs', 'kt'); if (!ok(d, s)) return null; return s > 0 ? [d / s] : { error: 'Ground speed must be above zero.' }; },
+    math: `<span class="f">time = distance ÷ speed</span>`,
+  },
+  {
+    id: 'fuel-required', group: 'Fuel', name: 'Fuel Required', sub: 'Fuel for a given time',
+    desc: 'Find the fuel needed for a flight time at your burn rate.',
+    inputs: [['burn', 'Fuel burn'], ['time', 'Flight time']],
+    outputs: [{ l: 'Fuel required', kind: 'volume', u: 'gal' }],
+    calc(g) { const b = g('burn', 'gph'), t = g('time'); return ok(b, t) ? [b * t] : null; },
+    math: `<span class="f">fuel = burn rate × time</span>
+      <p>This doesn't include run-up, the extra fuel used in the climb, or the VFR reserve: 30 minutes day, 45 minutes night.</p>`,
+  },
+  {
+    id: 'fuel-burn', group: 'Fuel', name: 'Fuel Burn Rate', sub: 'Burn rate from fuel used and time',
+    desc: 'Find your actual burn rate from the fuel used over a known time.',
+    inputs: [['fuelUsed', 'Fuel used'], ['time', 'Elapsed time']],
+    outputs: [{ l: 'Fuel burn rate', kind: 'burn', u: 'gph', to: 'burn' }],
+    calc(g) { const f = g('fuelUsed', 'gal'), t = g('time'); if (!ok(f, t)) return null; return t > 0 ? [f / t] : { error: 'Elapsed time must be above zero.' }; },
+    math: `<span class="f">burn rate = fuel used ÷ time</span>`,
+  },
+  {
+    id: 'fuel-endurance', group: 'Fuel', name: 'Fuel Endurance', sub: 'Time until the tanks run dry',
+    desc: 'Find how long the fuel on board will last at your burn rate.',
+    inputs: [['fuel', 'Fuel on board'], ['burn', 'Fuel burn']],
+    outputs: [{ l: 'Endurance', kind: 'time' }],
+    calc(g) { const f = g('fuel', 'gal'), b = g('burn', 'gph'); if (!ok(f, b)) return null; return b > 0 ? [f / b] : { error: 'Fuel burn must be above zero.' }; },
+    math: `<span class="f">endurance = fuel ÷ burn rate</span>
+      <p>This is time to fuel exhaustion. Subtract taxi, climb and your required reserve before planning with it.</p>`,
+  },
+  { id: 'units', group: 'Conversions', name: 'Unit Converter', sub: 'Distance, speed, weight, temperature and more', custom: 'units' },
+  {
+    id: 'fuel-weight', group: 'Conversions', name: 'Fuel Weight', sub: 'Weight of a volume of fuel or oil',
+    desc: 'Find the weight of a volume of fuel or oil, using standard planning densities.',
+    inputs: [['fwVol', 'Volume']],
+    outputs: FUELS.map(f => ({ l: f.n, kind: 'weight', u: 'lb', ou: 'fw-weight' })),
+    calc(g) { const v = g('fwVol', 'gal'); return ok(v) ? FUELS.map(f => v * f.f) : null; },
+    math: `<p>Planning densities in pounds per US gallon: 100LL 6.0, Jet A / JP-8 6.7, JP-4 6.6, kerosene 7.0, oil 7.5. Real density changes with temperature and batch, so use the fuel ticket when weight is tight.</p>`,
+  },
+  {
+    id: 'fuel-volume', group: 'Conversions', name: 'Fuel by Weight', sub: 'Volume of fuel or oil for a weight',
+    desc: 'Find the volume of fuel or oil for a given weight, using standard planning densities.',
+    inputs: [['fwWt', 'Weight']],
+    outputs: FUELS.map((f, i) => ({ l: f.n, kind: 'volume', u: i === 4 ? 'qt' : 'gal', ou: i === 4 ? 'fv-oil' : 'fw-volume' })),
+    calc(g) { const w = g('fwWt', 'lb'); return ok(w) ? FUELS.map(f => w / f.f) : null; },
+    math: `<p>Weight ÷ density, with the same planning densities as Fuel Weight.</p>`,
+  },
+  { id: 'weight-balance', group: 'Weight & Balance', name: 'Weight & Balance', sub: '35 aircraft, CG envelope and Va', custom: 'wb' },
+];
+const BY_ID = Object.fromEntries(CALCS.map(c => [c.id, c]));
+
+/* ---------------- Rendering helpers ---------------- */
+const $index = document.getElementById('index');
+const $calc = document.getElementById('calc');
+const outUnit = (c, o, i) => S.ou[o.ou || `${c.id}:${i}`] || o.u;
+
+function unitSelect(id, kind, value, extra = '') {
+  const opts = Object.entries(UNITS[kind]).map(([k, u]) => `<option value="${k}"${k === value ? ' selected' : ''}>${esc(u.n)}</option>`).join('');
+  return `<span class="sel"><select id="${id}" ${extra}>${opts}</select></span>`;
+}
+
+function fieldHTML(cid, k, label, hint) {
+  const s = cur(k), id = `f-${cid}-${k}`;
+  const lab = `<label for="${id}">${esc(label)}${hint ? `<span class="hint">${esc(hint)}</span>` : ''}</label>`;
+  let ctl;
+  switch (s.kind) {
+    case 'angle':
+      ctl = `<input class="num" id="${id}" data-k="${k}" inputmode="decimal" autocomplete="off" value="${esc(s.t)}"><span class="sfx">°${s.ref === 'M' ? 'M' : 'T'}</span>`;
+      break;
+    case 'runway':
+      ctl = `<span class="sfx tight">RWY</span><input class="num sm" id="${id}" data-k="${k}" inputmode="numeric" maxlength="2" autocomplete="off" value="${esc(s.t)}">`;
+      break;
+    case 'variation':
+      ctl = `<input class="num sm" id="${id}" data-k="${k}" inputmode="decimal" autocomplete="off" value="${esc(s.t)}"><span class="sfx tight">°</span>` +
+        `<span class="sel"><select id="${id}-d" data-k="${k}" data-role="dir" aria-label="East or west variation"><option value="E"${s.d === 'E' ? ' selected' : ''}>E</option><option value="W"${s.d === 'W' ? ' selected' : ''}>W</option></select></span>`;
+      break;
+    case 'time':
+      ctl = `<input class="num sm" id="${id}" data-k="${k}" data-part="h" inputmode="decimal" autocomplete="off" aria-label="${esc(label)} hours" value="${esc(s.h)}"><span class="sfx tight">h</span>` +
+        `<input class="num sm" id="${id}-m" data-k="${k}" data-part="m" inputmode="decimal" autocomplete="off" aria-label="${esc(label)} minutes" value="${esc(s.m)}"><span class="sfx tight">min</span>`;
+      break;
+    case 'temp':
+      ctl = `<button type="button" class="pm" data-k="${k}" data-target="${id}" aria-label="Switch ${esc(label)} between above and below zero">±</button>` +
+        `<input class="num" id="${id}" data-k="${k}" inputmode="decimal" autocomplete="off" value="${esc(s.t)}">` + unitSelect(`${id}-u`, s.kind, s.u, `data-k="${k}" data-role="unit" aria-label="${esc(label)} unit"`);
+      break;
+    default:
+      ctl = `<input class="num" id="${id}" data-k="${k}" inputmode="decimal" autocomplete="off" value="${esc(s.t)}">` + unitSelect(`${id}-u`, s.kind, s.u, `data-k="${k}" data-role="unit" aria-label="${esc(label)} unit"`);
+  }
+  return `<div class="field">${lab}<div class="control">${ctl}</div></div>`;
+}
+
+function headHTML(c) {
+  return `<header class="calc-head"><div class="eyebrow">${esc(c.group)}</div><h1>${esc(c.name)}</h1>${c.desc ? `<p>${esc(c.desc)}</p>` : ''}</header>`;
+}
+function mathHTML(html, open) {
+  return `<details class="math panel"${open ? ' open' : ''}><summary>How it’s calculated</summary><div class="math-body">${html}</div></details>`;
+}
+
+/* ---------------- Standard calculator ---------------- */
+const gridClass = n => `n${n}${n > 1 && n % 2 ? ' odd' : ''}`;
+function renderStd(c) {
+  const cells = c.outputs.map((o, i) => {
+    const unitCtl = UNITS[o.kind] ? unitSelect(`o-${c.id}-${i}`, o.kind, outUnit(c, o, i), `data-out="${i}" aria-label="${esc(o.l)} unit"`) :
+      o.kind === 'time' ? '<span class="ro-unit">h:mm:ss</span>' : '';
+    return `<div class="ro-cell"><div class="ro-label">${esc(o.l)}</div><div class="ro-val"><span class="ro-num${o.kind === 'angle' ? ' course' : ''}" id="r-${c.id}-${i}">—</span>${unitCtl}</div>${o.side ? `<div class="ro-side" id="s-${c.id}-${i}"></div>` : ''}</div>`;
+  }).join('');
+  $calc.innerHTML = headHTML(c) +
+    `<div class="panel inputs" id="inputs">${c.inputs.map(([k, l, h]) => fieldHTML(c.id, k, l, h)).join('')}</div>` +
+    `<section class="readout" aria-label="Results"><div class="ro-grid ${gridClass(c.outputs.length)}">${cells}</div><div class="ro-msg" id="ro-msg"></div></section>` +
+    ((c.tri || c.xw) ? `<figure class="panel diagram" id="diagram"></figure>` : '') +
+    mathHTML(c.math);
+  updateStd(c, false);
+}
+
+function updateStd(c, userEdit) {
+  let res;
+  try { res = c.calc(get); } catch (e) { res = { error: 'Check the inputs.' }; }
+  const vals = Array.isArray(res) ? res : null;
+  c.outputs.forEach((o, i) => {
+    const el = document.getElementById(`r-${c.id}-${i}`);
+    const v = vals ? vals[i] : NaN;
+    let txt = '—';
+    if (Number.isFinite(v)) {
+      if (o.kind === 'angle') txt = deg(v);
+      else if (o.kind === 'time') txt = hms(v);
+      else if (o.kind === 'mach') txt = v.toFixed(3);
+      else { const u = outUnit(c, o, i); const x = conv(o.kind, o.u, u, o.side ? Math.abs(v) : v); txt = fmtNum(x, UNITS[o.kind][u].dp); }
+    }
+    el.textContent = txt;
+    el.classList.toggle('dim', txt === '—');
+    if (o.side) {
+      const s = document.getElementById(`s-${c.id}-${i}`);
+      s.textContent = Number.isFinite(v) && Math.abs(v) >= 0.05 ? o.side[v < 0 ? 0 : 1] : (Number.isFinite(v) ? 'none' : '');
+    }
+    if (userEdit && o.to && Number.isFinite(v)) carry(o.to, v, o.u);
+  });
+  const msg = document.getElementById('ro-msg');
+  msg.className = 'ro-msg';
+  if (res && res.error) msg.textContent = res.error;
+  else if (!res) { msg.textContent = NEED; msg.classList.add('info'); }
+  else msg.textContent = '';
+  const dg = document.getElementById('diagram');
+  if (dg) {
+    if (c.tri) { const t = c.tri(get, vals); dg.innerHTML = windTriangle(t.th, t.tas, t.wd, t.ws, t.su || 'kt'); }
+    else if (c.xw) dg.innerHTML = crosswindSVG(get('rwy'), get('wd'), get('ws', 'kt'), vals, cur('ws').u);
+  }
+}
+
+/* ---------------- Diagrams ---------------- */
+function arrow(p, q, color, w, dash) {
+  const dx = q.x - p.x, dy = q.y - p.y, L = Math.hypot(dx, dy);
+  if (L < 3) return '';
+  const ux = dx / L, uy = dy / L, hl = Math.min(12, L * 0.45), hw = hl * 0.5;
+  const bx = q.x - ux * hl, by = q.y - uy * hl;
+  return `<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" style="stroke:${color};stroke-width:${w};stroke-linecap:round${dash ? `;stroke-dasharray:${dash}` : ''}"/>` +
+    `<polygon points="${q.x.toFixed(1)},${q.y.toFixed(1)} ${(bx - uy * hw).toFixed(1)},${(by + ux * hw).toFixed(1)} ${(bx + uy * hw).toFixed(1)},${(by - ux * hw).toFixed(1)}" style="fill:${color}"/>`;
+}
+function vecLabel(p, q, c, text, color) {
+  const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+  let nx = -(q.y - p.y), ny = q.x - p.x; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+  if ((mx - c.x) * nx + (my - c.y) * ny < 0) { nx = -nx; ny = -ny; }
+  const x = mx + nx * 15, y = my + ny * 15 + 4;
+  const anchor = nx > 0.35 ? 'start' : nx < -0.35 ? 'end' : 'middle';
+  return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" style="fill:${color};font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round">${esc(text)}</text>`;
+}
+function northArrow(x, y) {
+  return `<g><polygon points="${x},${y - 14} ${x - 6},${y + 2} ${x},${y - 2} ${x + 6},${y + 2}" style="fill:var(--muted)"/><text x="${x}" y="${y + 17}" text-anchor="middle" style="fill:var(--muted);font-size:11px;font-weight:700">N</text></g>`;
+}
+function windTriangle(th, tas, wd, ws, su) {
+  if (!ok(th, tas, wd, ws) || tas <= 0) return `<div class="diagram-empty">Fill in every field to draw the wind triangle.</div>`;
+  const A = { x: Math.sin(th * D2R) * tas, y: -Math.cos(th * D2R) * tas };
+  const wr = (wd + 180) * D2R;
+  const G = { x: A.x + Math.sin(wr) * ws, y: A.y - Math.cos(wr) * ws };
+  const xs = [0, A.x, G.x], ys = [0, A.y, G.y];
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const W = 340, H = 250, mx = 70, my = 40;
+  const sc = Math.min((W - 2 * mx) / Math.max(maxX - minX, 1e-6), (H - 2 * my) / Math.max(maxY - minY, 1e-6));
+  const cx = W / 2 - (minX + maxX) / 2 * sc, cy = H / 2 - (minY + maxY) / 2 * sc;
+  const P = p => ({ x: cx + p.x * sc, y: cy + p.y * sc });
+  const o = P({ x: 0, y: 0 }), a = P(A), g = P(G);
+  const ctr = { x: (o.x + a.x + g.x) / 3, y: (o.y + a.y + g.y) / 3 };
+  const trk = fixAngle(Math.atan2(G.x, -G.y) * R2D), gs = Math.hypot(G.x, G.y);
+  const wca = ((th - trk + 540) % 360) - 180;
+  const sp = v => fmtNum(conv('speed', 'kt', su, v), 0) + ' ' + UNITS.speed[su].n;
+  const windShown = ws * sc >= 3;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wind triangle: heading ${deg(th)} at ${sp(tas)}, wind from ${deg(wd)} at ${sp(ws)}, track ${deg(trk)} at ${sp(gs)}">
+    ${northArrow(22, 26)}
+    ${arrow(o, g, 'var(--course)', 4, '')}
+    ${arrow(o, a, 'var(--value)', 3, '')}
+    ${windShown ? arrow(a, g, 'var(--wind)', 3, '7 5') : ''}
+    <circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="4.5" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/>
+    ${vecLabel(o, a, ctr, 'HDG ' + deg(th), 'var(--value)')}
+    ${windShown ? vecLabel(a, g, ctr, 'WIND', 'var(--wind)') : ''}
+    ${vecLabel(o, g, ctr, 'TRK ' + deg(trk), 'var(--course)')}
+  </svg>`;
+  const side = Math.abs(wca) < 0.5 ? 'none' : `${Math.abs(wca).toFixed(0)}° ${wca > 0 ? 'right' : 'left'}`;
+  return svg + `<div class="legend">
+    <span><i style="border-color:var(--value)"></i>Heading ${deg(th)} · TAS ${sp(tas)}</span>
+    <span><i class="dash" style="border-color:var(--wind)"></i>Wind from ${deg(wd)} at ${sp(ws)}</span>
+    <span><i style="border-color:var(--course)"></i>Track ${deg(trk)} · GS ${sp(gs)}</span>
+    <span>Wind correction ${side}</span></div>`;
+}
+function crosswindSVG(rw, wd, ws, vals, su) {
+  if (!ok(rw, wd, ws) || rw < 1 || rw > 36) return `<div class="diagram-empty">Enter a runway and wind to see the picture.</div>`;
+  const W = 340, H = 270, cx = 170, cy = 135, hdg = rw * 10;
+  const n1 = String(Math.round(rw)).padStart(2, '0');
+  const n2 = String(((Math.round(rw) + 17) % 36) + 1).padStart(2, '0');
+  const dashes = [-60, -30, 0, 30, 60].map(y => `<rect x="${cx - 1.5}" y="${cy + y - 8}" width="3" height="16" style="fill:var(--runway-mark)"/>`).join('');
+  const rwyG = `<g transform="rotate(${hdg} ${cx} ${cy})">
+      <rect x="${cx - 19}" y="${cy - 108}" width="38" height="216" rx="2" style="fill:var(--runway)"/>
+      ${dashes}
+      <text x="${cx}" y="${cy + 97}" text-anchor="middle" style="fill:var(--runway-mark);font-size:15px;font-weight:700">${n1}</text>
+      <text x="${cx}" y="${cy - 97}" text-anchor="middle" transform="rotate(180 ${cx} ${cy - 102})" style="fill:var(--runway-mark);font-size:15px;font-weight:700">${n2}</text>
+    </g>`;
+  const from = { x: cx + Math.sin(wd * D2R) * 122, y: cy - Math.cos(wd * D2R) * 122 };
+  const to = { x: cx + Math.sin(wd * D2R) * 34, y: cy - Math.cos(wd * D2R) * 34 };
+  const sp = v => fmtNum(conv('speed', 'kt', su, v), 0) + ' ' + UNITS.speed[su].n;
+  const lx = cx + Math.sin(wd * D2R) * 138, ly = cy - Math.cos(wd * D2R) * 138 + 4;
+  const anchor = Math.sin(wd * D2R) > 0.35 ? 'end' : Math.sin(wd * D2R) < -0.35 ? 'start' : 'middle';
+  const xw = vals ? vals[0] : NaN, hw = vals ? vals[1] : NaN;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Runway ${n1} with wind from ${deg(wd)} at ${sp(ws)}">
+    ${northArrow(22, 26)}
+    ${rwyG}
+    ${ws > 0 ? arrow(from, to, 'var(--wind)', 4, '') : ''}
+    <text x="${Math.min(W - 6, Math.max(6, lx)).toFixed(1)}" y="${Math.min(H - 4, Math.max(14, ly)).toFixed(1)}" text-anchor="${anchor}" style="fill:var(--wind);font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:4px">${deg(wd)} @ ${esc(sp(ws))}</text>
+  </svg>`;
+  const legend = Number.isFinite(xw) ? `<div class="legend"><span><i style="border-color:var(--wind)"></i>Wind from ${deg(wd)}</span><span>Crosswind ${sp(Math.abs(xw))} ${Math.abs(xw) < 0.05 ? '' : xw < 0 ? 'from the left' : 'from the right'}</span><span>${hw <= 0 ? 'Headwind' : 'Tailwind'} ${sp(Math.abs(hw))}</span></div>` : '';
+  return svg + legend;
+}
+
+/* ---------------- Unit converter ---------------- */
+const CONV_KINDS = [['distance', 'Distance'], ['speed', 'Speed'], ['weight', 'Weight'], ['temp', 'Temperature'], ['volume', 'Volume'], ['burn', 'Fuel flow'], ['pressure', 'Pressure'], ['length', 'Length']];
+function renderUnits(c) {
+  const k = S.conv.kind in UNITS ? S.conv.kind : 'distance';
+  if (!(S.conv.u in UNITS[k])) S.conv.u = Object.keys(UNITS[k])[0];
+  $calc.innerHTML = `<header class="calc-head"><div class="eyebrow">Conversions</div><h1>Unit Converter</h1><p>Enter a value once and see it in every unit.</p></header>
+    <div class="chips" role="group" aria-label="What to convert">${CONV_KINDS.map(([id, l]) => `<button type="button" class="chip" data-kind="${id}" aria-pressed="${id === k}">${l}</button>`).join('')}</div>
+    <div class="panel inputs"><div class="field"><label for="cv-in">Value</label><div class="control">
+      ${k === 'temp' ? `<button type="button" class="pm" data-target="cv-in" aria-label="Switch between above and below zero">±</button>` : ''}
+      <input class="num wide" id="cv-in" inputmode="decimal" autocomplete="off" value="${esc(S.conv.t)}">${unitSelect('cv-u', k, S.conv.u, 'aria-label="Unit"')}</div></div></div>
+    <section class="readout" aria-label="Converted values"><div class="conv-list" id="cv-list"></div></section>
+    ${mathHTML(`<p>Exact factors used: 1 ft = 0.3048 m, 1 nm = 1,852 m, 1 sm = 5,280 ft, 1 US gal = 3.785411784 L, 1 imp gal = 4.54609 L, 1 kg = 2.20462 lb, 1 inHg = 33.86389 hPa, °F = °C × 9/5 + 32.</p>`)}`;
+  updateUnits();
+}
+function updateUnits() {
+  const k = S.conv.kind, x = num(S.conv.t);
+  document.getElementById('cv-list').innerHTML = Object.entries(UNITS[k]).map(([id, u]) => {
+    const v = Number.isFinite(x) ? conv(k, S.conv.u, id, x) : NaN;
+    const dp = Math.abs(v) < 10 && id !== 'ft' && id !== 'm' ? Math.max(u.dp, 3) : u.dp + 1;
+    return `<div class="conv-row"><span class="ro-num${id === S.conv.u ? ' course' : ''}">${fmtNum(v, dp)} <span class="ro-unit">${esc(u.n)}</span></span><span class="ro-label">${esc(u.l)}</span></div>`;
+  }).join('');
+}
+
+/* ---------------- Weight & balance ---------------- */
+const ALL_AC = AIRCRAFT.flatMap(g => g.a.map(a => ({ ...a, group: g.n })));
+const FUEL_LB = { 1: 6, 2: 7, 3: 6.6 };   /* fuel types from CMWBData.m */
+function acByName(n) { return ALL_AC.find(a => a.n === n) || ALL_AC.find(a => a.n === 'C172S') || ALL_AC[0]; }
+function wbData(ac) {
+  if (!S.wb.d[ac.n]) {
+    const st = ac.s.map(([n], i) => i === 0 ? '180' : (i === 1 && /front/i.test(n)) ? '160' : '0');
+    const bag = ac.s.findIndex(([n]) => /baggage/i.test(n));
+    if (bag >= 0) st[bag] = '20';
+    S.wb.d[ac.n] = { ew: plain(ac.w, 1), earm: plain(ac.arm, 2), s: st, f: ac.t.map(t => plain(Math.round(t[1] * 0.75), 0)) };
+  }
+  return S.wb.d[ac.n];
+}
+function wbCompute(ac, d) {
+  const ew = num(d.ew), ea = num(d.earm);
+  if (!ok(ew, ea)) return null;
+  let W = ew, M = ew * ea, FW = 0, FM = 0;
+  const rows = [];
+  ac.s.forEach(([, arm], i) => { const w = num(d.s[i]); const ww = Number.isFinite(w) ? w : 0; W += ww; M += ww * arm; rows.push(ww * arm); });
+  const frows = ac.t.map(([, , arm, ft], i) => { const gal = num(d.f[i]); const w = (Number.isFinite(gal) ? gal : 0) * (FUEL_LB[ft] || 6); W += w; M += w * arm; FW += w; FM += w * arm; return { w, m: w * arm }; });
+  const zW = W - FW, zM = M - FM;
+  return { W, M, cg: W > 0 ? M / W : NaN, zW, zcg: zW > 0 ? zM / zW : NaN, FW, rows, frows, em: ew * ea };
+}
+function inside(pts, x, y) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [wi, ai] = pts[i], [wj, aj] = pts[j];
+    if ((wi > y) !== (wj > y) && x < (aj - ai) * (y - wi) / (wj - wi) + ai) c = !c;
+  }
+  return c;
+}
+function nearInside(pts, x, y) {   /* count points sitting on the line as inside */
+  return inside(pts, x, y) || [[0.01, 0], [-0.01, 0], [0, 0.5], [0, -0.5]].some(([dx, dy]) => inside(pts, x + dx, y + dy));
+}
+function renderWB() {
+  const ac = acByName(S.wb.ac); S.wb.ac = ac.n;
+  const d = wbData(ac);
+  const opts = AIRCRAFT.map(g => `<optgroup label="${esc(g.n)}">${g.a.map(a => `<option${a.n === ac.n ? ' selected' : ''}>${esc(a.n)}</option>`).join('')}</optgroup>`).join('');
+  const vaU = ac.vu ? 'mph' : 'kt';
+  const stRows = ac.s.map(([n, arm], i) => `<div class="wb-row"><div class="wb-name">${esc(n)}<small>arm ${plain(arm, 2)} in</small></div>
+      <div class="control"><input class="num" id="wb-s${i}" data-wb="s" data-i="${i}" inputmode="decimal" autocomplete="off" aria-label="${esc(n)} weight in pounds" value="${esc(d.s[i] ?? '')}"><span class="sfx">lb</span></div>
+      <div class="wb-mom" id="wb-ms${i}"></div></div>`).join('');
+  const fRows = ac.t.map(([n, cap, arm, ft], i) => `<div class="wb-row"><div class="wb-name">${esc(n)}<small>arm ${plain(arm, 2)} in · holds ${plain(cap, 1)} gal · ${FUEL_LB[ft] || 6} lb/gal</small></div>
+      <div class="control"><input class="num" id="wb-f${i}" data-wb="f" data-i="${i}" inputmode="decimal" autocomplete="off" aria-label="${esc(n)} fuel in gallons" value="${esc(d.f[i] ?? '')}"><span class="sfx">gal</span></div>
+      <div class="wb-mom" id="wb-mf${i}"></div></div>`).join('');
+  $calc.innerHTML = `<header class="calc-head"><div class="eyebrow">Weight &amp; Balance</div><h1>Weight &amp; Balance</h1>
+      <p>Load the airplane and see the center of gravity against the envelope, at takeoff and with the fuel burned off.</p></header>
+    <div class="panel">
+      <div class="wb-ac"><label for="wb-ac">Aircraft</label><span class="sel"><select id="wb-ac">${opts}</select></span>
+        <p>Empty weight and arm are typical values for the type. Replace them with the numbers from your airplane’s weight and balance record.</p></div>
+      <div class="wb-table">
+        <div class="wb-row head"><div>Item</div><div style="text-align:right">Weight</div><div style="text-align:right">Moment</div></div>
+        <div class="wb-row"><div class="wb-name">Empty weight<small>arm <input class="num" id="wb-earm" data-wb="earm" inputmode="decimal" autocomplete="off" aria-label="Empty weight arm in inches" value="${esc(d.earm)}"> in</small></div>
+          <div class="control"><input class="num" id="wb-ew" data-wb="ew" inputmode="decimal" autocomplete="off" aria-label="Empty weight in pounds" value="${esc(d.ew)}"><span class="sfx">lb</span></div>
+          <div class="wb-mom" id="wb-me"></div></div>
+        ${stRows}${fRows}
+        <div class="wb-row total"><div class="wb-name">Takeoff total</div><div class="wb-mom" id="wb-tw" style="color:var(--ink)"></div><div class="wb-mom" id="wb-tm"></div></div>
+      </div>
+    </div>
+    <div class="status" id="wb-status"></div>
+    <section class="readout" aria-label="Weight and balance results"><div class="ro-grid n6">
+      <div class="ro-cell"><div class="ro-label">Takeoff weight</div><div class="ro-val"><span class="ro-num" id="wb-r0">—</span><span class="ro-unit">lb</span></div></div>
+      <div class="ro-cell"><div class="ro-label">Takeoff CG</div><div class="ro-val"><span class="ro-num course" id="wb-r1">—</span><span class="ro-unit">in</span></div></div>
+      <div class="ro-cell"><div class="ro-label">Zero-fuel weight</div><div class="ro-val"><span class="ro-num" id="wb-r2">—</span><span class="ro-unit">lb</span></div></div>
+      <div class="ro-cell"><div class="ro-label">Zero-fuel CG</div><div class="ro-val"><span class="ro-num course" id="wb-r3">—</span><span class="ro-unit">in</span></div></div>
+      <div class="ro-cell"><div class="ro-label">Va at takeoff weight</div><div class="ro-val"><span class="ro-num" id="wb-r4">—</span><span class="ro-unit">${vaU}</span></div></div>
+      <div class="ro-cell"><div class="ro-label">Va with fuel burned off</div><div class="ro-val"><span class="ro-num" id="wb-r5">—</span><span class="ro-unit">${vaU}</span></div></div>
+    </div><div class="ro-msg" id="ro-msg"></div></section>
+    <figure class="panel diagram" id="wb-chart"></figure>
+    ${mathHTML(`<span class="f">moment = weight × arm</span><span class="f">CG = total moment ÷ total weight</span>
+      <p>The arm is the distance from the datum to each station. The CG has to stay inside the envelope from takeoff until the fuel is burned off, so both points are checked. The chart assumes all tanks burn down together.</p>
+      <p>Va here is the book Va (${ac.va} ${vaU} at ${fmtNum(ac.wmax, 0)} lb) scaled by √(weight ÷ max gross).</p>
+      <p>Envelope data comes from the original E6B app. Always check against your airplane’s POH.</p>`)}`;
+  updateWB();
+}
+function updateWB() {
+  const ac = acByName(S.wb.ac), d = wbData(ac), r = wbCompute(ac, d);
+  const set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  const msg = document.getElementById('ro-msg');
+  if (!r) {
+    ['wb-r0', 'wb-r1', 'wb-r2', 'wb-r3', 'wb-r4', 'wb-r5'].forEach(id => set(id, '—'));
+    msg.className = 'ro-msg info'; msg.textContent = 'Enter the empty weight and arm.';
+    document.getElementById('wb-status').innerHTML = '';
+    document.getElementById('wb-chart').innerHTML = `<div class="diagram-empty">The envelope chart appears once the empty weight is filled in.</div>`;
+    return;
+  }
+  msg.textContent = '';
+  set('wb-me', fmtNum(r.em, 0));
+  r.rows.forEach((m, i) => set(`wb-ms${i}`, fmtNum(m, 0)));
+  r.frows.forEach((f, i) => set(`wb-mf${i}`, `${fmtNum(f.w, 0)} lb · ${fmtNum(f.m, 0)}`));
+  set('wb-tw', fmtNum(r.W, 0) + ' lb'); set('wb-tm', fmtNum(r.M, 0));
+  set('wb-r0', fmtNum(r.W, 0)); set('wb-r1', fmtNum(r.cg, 2));
+  set('wb-r2', fmtNum(r.zW, 0)); set('wb-r3', fmtNum(r.zcg, 2));
+  const va = w => w > 0 ? ac.va * Math.sqrt(w / ac.wmax) : NaN;
+  set('wb-r4', fmtNum(va(r.W), 0)); set('wb-r5', fmtNum(va(r.zW), 0));
+  /* status pills */
+  const pills = [];
+  const over = r.W - ac.wmax;
+  pills.push(over > 0.5 ? `<span class="pill bad">${fmtNum(over, 0)} lb over max gross (${fmtNum(ac.wmax, 0)} lb)</span>` : `<span class="pill good">${fmtNum(-over, 0)} lb under max gross</span>`);
+  ac.r.filter(([n, p]) => /^(normal|utility)$/i.test(n) && p.length >= 3).forEach(([n, p]) => {
+    const to = nearInside(p, r.cg, r.W), zf = !(r.zW > 0) || nearInside(p, r.zcg, r.zW);
+    const cls = to && zf ? 'good' : /normal/i.test(n) ? 'bad' : 'neutral';
+    const txt = to && zf ? `Within ${n} category` : !to && !zf ? `Outside ${n} category` : !to ? `Outside ${n} category at takeoff` : `Outside ${n} category as fuel burns`;
+    pills.push(`<span class="pill ${cls}">${txt}</span>`);
+  });
+  ac.t.forEach(([n, cap], i) => { const g = num(d.f[i]); if (Number.isFinite(g) && g > cap + 0.05) pills.push(`<span class="pill bad">${esc(n)} holds only ${plain(cap, 1)} gal</span>`); });
+  document.getElementById('wb-status').innerHTML = pills.join('');
+  document.getElementById('wb-chart').innerHTML = wbChart(ac, r);
+}
+function niceStep(range, n) {
+  const raw = range / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+function wbChart(ac, r) {
+  const W = 360, H = 270, ml = 60, mr = 14, mt = 14, mb = 38;
+  const pts = ac.r.flatMap(([, p]) => p).concat([[r.W, r.cg]]).concat(r.zW > 0 ? [[r.zW, r.zcg]] : []).filter(([w, a]) => ok(w, a));
+  let wmin = Math.min(...pts.map(p => p[0])), wmax = Math.max(...pts.map(p => p[0]));
+  let amin = Math.min(...pts.map(p => p[1])), amax = Math.max(...pts.map(p => p[1]));
+  const wp = (wmax - wmin) * 0.08 || 100, ap = (amax - amin) * 0.08 || 2;
+  wmin -= wp; wmax += wp; amin -= ap; amax += ap;
+  const X = a => ml + (a - amin) / (amax - amin) * (W - ml - mr);
+  const Y = w => H - mb - (w - wmin) / (wmax - wmin) * (H - mt - mb);
+  const sa = niceStep(amax - amin, 5), sw = niceStep(wmax - wmin, 5);
+  let grid = '';
+  for (let a = Math.ceil(amin / sa) * sa; a <= amax; a += sa) grid += `<line x1="${X(a).toFixed(1)}" x2="${X(a).toFixed(1)}" y1="${mt}" y2="${H - mb}" style="stroke:var(--line);stroke-width:1"/><text x="${X(a).toFixed(1)}" y="${H - mb + 16}" text-anchor="middle" style="fill:var(--muted);font-size:11px">${plain(a, 1)}</text>`;
+  for (let w = Math.ceil(wmin / sw) * sw; w <= wmax; w += sw) grid += `<line x1="${ml}" x2="${W - mr}" y1="${Y(w).toFixed(1)}" y2="${Y(w).toFixed(1)}" style="stroke:var(--line);stroke-width:1"/><text x="${ml - 6}" y="${(Y(w) + 4).toFixed(1)}" text-anchor="end" style="fill:var(--muted);font-size:11px">${fmtNum(w, 0)}</text>`;
+  const polys = ac.r.map(([n, p]) => {
+    const d = p.map(([w, a]) => `${X(a).toFixed(1)},${Y(w).toFixed(1)}`).join(' ');
+    if (/normal/i.test(n)) return `<polygon points="${d}" style="fill:var(--course);fill-opacity:.1;stroke:var(--course);stroke-width:2;stroke-linejoin:round"/>`;
+    if (/utility/i.test(n)) return `<polygon points="${d}" style="fill:var(--value);fill-opacity:.08;stroke:var(--value);stroke-width:1.5;stroke-dasharray:6 4"/>`;
+    return `<polygon points="${d}" style="fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3"/>`;
+  }).join('');
+  const to = { x: X(r.cg), y: Y(r.W) };
+  const hasZ = r.zW > 0 && Number.isFinite(r.zcg);
+  const zf = hasZ ? { x: X(r.zcg), y: Y(r.zW) } : null;
+  const names = ac.r.map(([n]) => n);
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CG envelope for the ${esc(ac.n)} with takeoff point ${fmtNum(r.W, 0)} lb at ${fmtNum(r.cg, 2)} in">
+      ${grid}${polys}
+      ${zf ? `<line x1="${to.x.toFixed(1)}" y1="${to.y.toFixed(1)}" x2="${zf.x.toFixed(1)}" y2="${zf.y.toFixed(1)}" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>` : ''}
+      ${zf ? `<circle cx="${zf.x.toFixed(1)}" cy="${zf.y.toFixed(1)}" r="5" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/>` : ''}
+      <circle cx="${to.x.toFixed(1)}" cy="${to.y.toFixed(1)}" r="6" style="fill:var(--ink);stroke:var(--surface);stroke-width:2"/>
+      <text x="${(ml + (W - ml - mr) / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" style="fill:var(--muted);font-size:11px">CG arm (in aft of datum)</text>
+      <text x="10" y="${((H - mb + mt) / 2).toFixed(1)}" text-anchor="middle" transform="rotate(-90 10 ${((H - mb + mt) / 2).toFixed(1)})" style="fill:var(--muted);font-size:11px">Weight (lb)</text>
+    </svg>
+    <div class="legend">
+      ${names.some(n => /normal/i.test(n)) ? `<span><i style="border-color:var(--course)"></i>Normal category</span>` : ''}
+      ${names.some(n => /utility/i.test(n)) ? `<span><i class="dash" style="border-color:var(--value)"></i>Utility category</span>` : ''}
+      <span><i class="dot" style="background:var(--ink)"></i>Takeoff</span>
+      ${zf ? `<span><i class="ring" style="border-color:var(--ink)"></i>Fuel burned off</span>` : ''}
+    </div>`;
+}
+
+/* ---------------- Index + routing ---------------- */
+function renderIndex(active) {
+  const standalone = window.matchMedia && matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  $index.innerHTML = `<div class="intro"><p class="tip">Example values are filled in. Change any field and the results update as you type.</p>
+      <p>Calculators share values, so a true airspeed you work out is ready in the wind calculators.</p>
+      ${standalone ? '' : `<p>On iPhone: tap Share, then <b>Add to Home Screen</b> to open it like an app.</p>`}</div>` +
+    GROUPS.map(gn => `<div class="ix-group"><h2>${esc(gn)}</h2>${CALCS.filter(c => c.group === gn).map(c =>
+      `<a class="ix-item" href="#${c.id}"${c.id === active ? ' aria-current="page"' : ''}><span class="ix-name">${esc(c.name)}</span><span class="ix-sub">${esc(c.sub)}</span></a>`).join('')}</div>`).join('') +
+    `<footer class="foot"><p>For training and advisory use only. Not for navigation or flight planning: check results against official sources and your POH.</p>
+      <p>Math ported from the open-source <a href="https://github.com/w3woody/e6b" target="_blank" rel="noopener">E6B app by William Woody</a> (GPL-3.0).</p></footer>`;
+}
+let current = null;
+function route() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  const wide = matchMedia('(min-width: 960px)').matches;
+  let c = BY_ID[id];
+  if (!c && wide) c = BY_ID[S.last] || BY_ID.planner;
+  document.body.classList.toggle('has-calc', !!BY_ID[id]);
+  renderIndex(c && c.id);
+  if (!c) { current = null; $calc.innerHTML = ''; return; }
+  const changed = !current || current.id !== c.id;
+  current = c; S.last = c.id; save();
+  if (c.custom === 'units') renderUnits(c);
+  else if (c.custom === 'wb') renderWB();
+  else renderStd(c);
+  document.title = `${c.name} · E6B Flight Computer`;
+  if (changed && BY_ID[id] && !wide) window.scrollTo(0, 0);
+}
+
+/* ---------------- Events ---------------- */
+$calc.addEventListener('input', e => {
+  const t = e.target;
+  if (!current) return;
+  if (current.custom === 'units') { if (t.id === 'cv-in') { S.conv.t = t.value; save(); updateUnits(); } return; }
+  if (current.custom === 'wb') {
+    const d = wbData(acByName(S.wb.ac)), f = t.dataset.wb;
+    if (f === 's' || f === 'f') d[f][+t.dataset.i] = t.value; else if (f) d[f] = t.value;
+    save(); updateWB(); return;
+  }
+  const k = t.dataset.k;
+  if (!k || t.tagName !== 'INPUT') return;
+  if (t.dataset.part) setV(k, { [t.dataset.part]: t.value }); else setV(k, { t: t.value });
+  updateStd(current, true);
+});
+$calc.addEventListener('change', e => {
+  const t = e.target;
+  if (!current || t.tagName !== 'SELECT') return;
+  if (t.id === 'wb-ac') { S.wb.ac = t.value; save(); renderWB(); return; }
+  if (t.id === 'cv-u') {
+    const x = num(S.conv.t);
+    if (Number.isFinite(x)) { S.conv.t = plain(conv(S.conv.kind, S.conv.u, t.value, x), 4); document.getElementById('cv-in').value = S.conv.t; }
+    S.conv.u = t.value; save(); updateUnits(); return;
+  }
+  if (t.dataset.out != null) {
+    const o = current.outputs[+t.dataset.out];
+    S.ou[o.ou || `${current.id}:${t.dataset.out}`] = t.value; save();
+    updateStd(current, false); return;
+  }
+  const k = t.dataset.k;
+  if (!k) return;
+  if (t.dataset.role === 'dir') { setV(k, { d: t.value }); updateStd(current, true); return; }
+  if (t.dataset.role === 'unit') {
+    const s = cur(k), x = num(s.t);
+    const patch = { u: t.value };
+    if (Number.isFinite(x)) patch.t = plain(conv(s.kind, s.u, t.value, x), UNITS[s.kind][t.value].dp + 1);
+    setV(k, patch);
+    const inp = document.getElementById(t.id.replace(/-u$/, ''));
+    if (inp && patch.t != null) inp.value = patch.t;
+    updateStd(current, true);
+  }
+});
+$calc.addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (chip) { S.conv.kind = chip.dataset.kind; S.conv.u = Object.keys(UNITS[S.conv.kind])[0]; save(); renderUnits(); return; }
+  const pm = e.target.closest('.pm');
+  if (pm) {
+    const inp = document.getElementById(pm.dataset.target);
+    if (!inp) return;
+    const v = inp.value.trim();
+    inp.value = v.startsWith('-') ? v.slice(1) : '-' + v;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.focus();
+  }
+});
+window.addEventListener('hashchange', route);
+matchMedia('(min-width: 960px)').addEventListener('change', route);
+route();
+
+/* Offline support when hosted (GitHub Pages). Inside a sandboxed preview this quietly does nothing. */
+if ('serviceWorker' in navigator && location.protocol === 'https:' && window.top === window.self) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
