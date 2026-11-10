@@ -68,6 +68,17 @@ The weight and balance feature of this E6B application will also allow you to qu
 
 This E6B also contains a weight and balance calculator which can graphically represent the results of a calculation for a number of popular aircraft, including graphically representing the fuel burn-down to help you keep your plane in balance during the entire flight. For known aircraft Glenview Software will also show the Va maneuvering speed at the current weight and at the fuel empty weight so you can fly your entire trip safely.
 
+## Web version
+
+The `docs/` folder holds a web version of the calculator that runs in any browser, including iPhone and Android, with no app store. It covers every calculator above plus the weight and balance envelope for all 35 aircraft in the database, and it keeps working offline once loaded.
+
+- `docs/index.html` is the whole app (HTML, CSS and JavaScript in one file). The math is a direct port of `iOS/E6BCalcEngine`.
+- `docs/manifest.webmanifest`, `docs/sw.js` and `docs/icons/` let it install to a phone's home screen and work offline.
+
+To host it free with GitHub Pages: in the repository go to **Settings → Pages**, set **Source** to **Deploy from a branch**, pick the `master` branch and the `/docs` folder, and save. After a minute it is live at `https://<github-user>.github.io/e6b/`.
+
+To install on an iPhone, open that address in Safari, tap **Share**, then **Add to Home Screen**.
+
 ## Disclamer
 
 The calculations performed by this application are derived from various public sources, and the results should be used only for educational or advisory purposes only. The results of this application should not be relied upon for navigational or for flight planning purposes. While we believe the results of these calculations to be correct, there are no guarantees that these results are in fact correct. You should always double-check your results using official sources, and you should always pay attention to what's going on outside the airplane while in flight: remember, your first priority is to fly the plane. And your second is not to hit anything.
