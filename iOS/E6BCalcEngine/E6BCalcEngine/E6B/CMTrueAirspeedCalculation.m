@@ -118,7 +118,7 @@
 			GTrueAirSpeed = value;
 			break;
 		case 2:
-			GCurrentVolume = value;
+			GDensityAltitude = value.unit;
 			break;
 	}
 }
