@@ -6,12 +6,11 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" data-pwa>
 <meta name="description" content="E6B flight computer: wind triangle, density altitude, true airspeed, fuel, unit conversions and weight and balance." data-pwa>
-<meta name="theme-color" content="#EDF0EC" media="(prefers-color-scheme: light)" data-pwa>
-<meta name="theme-color" content="#0A0E12" media="(prefers-color-scheme: dark)" data-pwa>
+<meta name="theme-color" content="#07060F" data-pwa>
 <meta name="mobile-web-app-capable" content="yes" data-pwa>
 <meta name="apple-mobile-web-app-capable" content="yes" data-pwa>
 <meta name="apple-mobile-web-app-title" content="E6B" data-pwa>
-<meta name="apple-mobile-web-app-status-bar-style" content="default" data-pwa>
+<meta name="apple-mobile-web-app-status-bar-style" content="black" data-pwa>
 <link rel="manifest" href="manifest.webmanifest" data-pwa>
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" data-pwa>
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml" data-pwa>
@@ -20,50 +19,37 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=Inter:wght@400;500;600&display=swap">
 <style>
 /* Layout: phone-first instrument panel. Sticky title bar; home is the calculator index; a calculator
-   stacks inputs, an avionics-style readout, a live diagram, then the math. From 960px the index
-   becomes a left rail beside the open calculator. */
+   stacks inputs, a glowing readout, a live diagram, then the math. From 960px the index
+   becomes a left rail beside the open calculator.
+   Look: neon on a night-sky panel, one deliberate dark theme for every viewer. */
 :root {
-  --bg: #EDF0EC;
-  --surface: #FFFFFF;
-  --surface-2: #F3F5F2;
-  --ink: #14202A;
-  --muted: #586672;
-  --line: #D1D8D3;
-  --course: #B0177C;        /* sectional-chart magenta: courses and tracks */
-  --value: #0B6A9C;         /* values you enter */
-  --wind: #A35F00;
-  --good: #1B7547;
-  --bad: #B42318;
-  --runway: #3A4550;
-  --runway-mark: #F4F6F3;
-  --screen: #0E161D;        /* the readout is always a cockpit display */
-  --screen-line: #263541;
-  --screen-ink: #E6EDF2;
-  --screen-muted: #93A5B4;
-  --screen-value: #45CFFF;
-  --screen-course: #FF5CD6;
-  --screen-good: #43DB7E;
-  --screen-bad: #FF7A6E;
+  --bg: #07060F;
+  --surface: #0E0C1D;
+  --surface-2: #090816;
+  --ink: #EEEDFF;
+  --muted: #A19ECB;
+  --line: #2C2754;
+  --grid: rgba(124, 92, 255, .07);
+  --course: #FF2BD6;        /* neon magenta: courses and tracks */
+  --value: #00F0FF;         /* neon cyan: values you enter */
+  --wind: #FFE600;          /* neon yellow: wind */
+  --good: #39FF14;          /* neon green */
+  --bad: #FF5A36;           /* neon orange-red */
+  --violet: #8B5CFF;
+  --runway: #17142E;
+  --runway-mark: #EEEDFF;
+  --screen: #04030A;
+  --screen-line: #2C2754;
+  --screen-ink: #EEEDFF;
+  --screen-muted: #A19ECB;
+  --screen-value: #00F0FF;
+  --screen-course: #FF2BD6;
+  --screen-good: #39FF14;
+  --screen-bad: #FF5A36;
   --font-display: "B612", "Segoe UI", system-ui, sans-serif;
   --font-mono: "B612", "SF Mono", ui-monospace, Menlo, Consolas, monospace;   /* numbers: B612 with tabular figures */
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --r: 6px;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0A0E12; --surface: #11181F; --surface-2: #0D1419; --ink: #E6EDF2; --muted: #8D9CA9; --line: #24313C;
-    --course: #FF5CD6; --value: #45CFFF; --wind: #FFB02E; --good: #43DB7E; --bad: #FF7A6E;
-    --runway: #2B3640; --runway-mark: #C9D3DB;
-    --screen: #05090C; --screen-line: #22303B;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0A0E12; --surface: #11181F; --surface-2: #0D1419; --ink: #E6EDF2; --muted: #8D9CA9; --line: #24313C;
-  --course: #FF5CD6; --value: #45CFFF; --wind: #FFB02E; --good: #43DB7E; --bad: #FF7A6E;
-  --runway: #2B3640; --runway-mark: #C9D3DB;
-  --screen: #05090C; --screen-line: #22303B;
   color-scheme: dark;
 }
 
@@ -281,6 +267,48 @@ details.math[open] summary::before { content: "\2212"; }
 .pill.bad { color: var(--bad); }
 .pill.neutral { color: var(--muted); }
 
+/* Neon: glows, grid backdrop and lit edges */
+body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(900px 520px at 88% -8%, rgba(255, 43, 214, .14), transparent 62%),
+    radial-gradient(820px 520px at -8% 6%, rgba(0, 240, 255, .11), transparent 62%),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: auto, auto, 28px 28px, 28px 28px;
+}
+.topbar { background: rgba(7, 6, 15, .88); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom-color: rgba(139, 92, 255, .35); }
+.brand b { color: var(--value); text-shadow: 0 0 6px rgba(0, 240, 255, .9), 0 0 18px rgba(0, 240, 255, .5); }
+.brand span { color: var(--course); text-shadow: 0 0 8px rgba(255, 43, 214, .6); }
+.topbar .back { text-shadow: 0 0 8px rgba(0, 240, 255, .6); }
+.intro { border-color: rgba(255, 43, 214, .4); box-shadow: 0 0 22px rgba(255, 43, 214, .1); }
+.ix-group h2 { color: var(--violet); text-shadow: 0 0 8px rgba(139, 92, 255, .7); }
+.ix-item:hover { border-color: var(--violet); position: relative; z-index: 1; }
+.ix-item[aria-current="page"] { box-shadow: inset 3px 0 0 var(--course), 0 0 16px rgba(255, 43, 214, .45); }
+.eyebrow { text-shadow: 0 0 8px rgba(255, 43, 214, .75); }
+.calc-head h1 { text-shadow: 0 0 22px rgba(139, 92, 255, .45); }
+.panel { box-shadow: 0 0 0 1px rgba(139, 92, 255, .06), 0 10px 30px rgba(0, 0, 0, .35); }
+.num { text-shadow: 0 0 8px rgba(0, 240, 255, .6); border-color: #2E2A5A; }
+.num:focus { border-color: var(--value); box-shadow: 0 0 0 1px var(--value), 0 0 16px rgba(0, 240, 255, .5); }
+.sfx { color: var(--violet); }
+.pm:active { border-color: var(--value); color: var(--value); }
+.readout {
+  border-color: rgba(0, 240, 255, .4);
+  box-shadow: 0 0 0 1px rgba(0, 240, 255, .08), 0 0 30px rgba(0, 240, 255, .14), inset 0 0 50px rgba(139, 92, 255, .07);
+}
+.ro-label { color: var(--violet); }
+.ro-num { text-shadow: 0 0 4px rgba(0, 240, 255, .9), 0 0 18px rgba(0, 240, 255, .5); }
+.ro-num.course { text-shadow: 0 0 4px rgba(255, 43, 214, .9), 0 0 18px rgba(255, 43, 214, .5); }
+.ro-num.dim { text-shadow: none; }
+.ro-msg { text-shadow: 0 0 8px rgba(255, 90, 54, .6); }
+.ro-msg.info { text-shadow: none; }
+details.math summary::before { text-shadow: 0 0 8px rgba(255, 43, 214, .8); }
+.f, .math-body code { color: var(--value); border-color: #2E2A5A; }
+.chip[aria-pressed="true"] { background: var(--value); color: #04030A; border-color: var(--value); box-shadow: 0 0 16px rgba(0, 240, 255, .55); }
+.pill.good { box-shadow: 0 0 14px rgba(57, 255, 20, .3); text-shadow: 0 0 8px rgba(57, 255, 20, .5); }
+.pill.bad { box-shadow: 0 0 14px rgba(255, 90, 54, .35); text-shadow: 0 0 8px rgba(255, 90, 54, .5); }
+.pill::before { box-shadow: 0 0 8px currentColor; }
+
 .foot { font-size: 13px; color: var(--muted); display: grid; gap: 6px; max-width: 70ch; }
 .foot p { margin: 0; }
 @media (prefers-reduced-motion: no-preference) {
@@ -293,12 +321,12 @@ details.math[open] summary::before { content: "\2212"; }
   <div class="topbar-in">
     <a class="brand" href="#home" aria-label="E6B Flight Computer, all calculators">
       <svg viewBox="0 0 512 512" aria-hidden="true">
-        <rect width="512" height="512" rx="110" fill="#0B1117"/>
-        <circle cx="256" cy="256" r="196" fill="#16202A" stroke="#3A4A58" stroke-width="10"/>
-        <path d="M256 256 L376 136" stroke="#FF5CD6" stroke-width="26" stroke-linecap="round"/>
-        <path d="M256 256 L198 150" stroke="#45CFFF" stroke-width="22" stroke-linecap="round"/>
-        <path d="M198 150 L376 136" stroke="#FFB02E" stroke-width="16" stroke-linecap="round" stroke-dasharray="2 30"/>
-        <circle cx="256" cy="256" r="26" fill="#0B1117" stroke="#E6EDF2" stroke-width="10"/>
+        <rect width="512" height="512" rx="110" fill="#07060F"/>
+        <circle cx="256" cy="256" r="196" fill="#0E0C1D" stroke="#8B5CFF" stroke-width="10"/>
+        <path d="M256 256 L376 136" stroke="#FF2BD6" stroke-width="26" stroke-linecap="round"/>
+        <path d="M256 256 L198 150" stroke="#00F0FF" stroke-width="22" stroke-linecap="round"/>
+        <path d="M198 150 L376 136" stroke="#FFE600" stroke-width="16" stroke-linecap="round" stroke-dasharray="2 30"/>
+        <circle cx="256" cy="256" r="26" fill="#07060F" stroke="#EEEDFF" stroke-width="10"/>
       </svg>
       <div><b>E6B</b><br><span>Flight computer</span></div>
     </a>
@@ -876,6 +904,11 @@ function vecLabel(p, q, c, text, color) {
   const anchor = nx > 0.35 ? 'start' : nx < -0.35 ? 'end' : 'middle';
   return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" style="fill:${color};font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round">${esc(text)}</text>`;
 }
+/* Neon glow for diagram strokes; user-space region so vertical or horizontal lines never vanish */
+function glowDefs(id, W, H, blur = 2.6) {
+  return `<defs><filter id="${id}" filterUnits="userSpaceOnUse" x="-200" y="-200" width="${W + 400}" height="${H + 400}">
+    <feGaussianBlur stdDeviation="${blur}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+}
 function northArrow(x, y) {
   return `<g><polygon points="${x},${y - 14} ${x - 6},${y + 2} ${x},${y - 2} ${x + 6},${y + 2}" style="fill:var(--muted)"/><text x="${x}" y="${y + 17}" text-anchor="middle" style="fill:var(--muted);font-size:11px;font-weight:700">N</text></g>`;
 }
@@ -897,10 +930,13 @@ function windTriangle(th, tas, wd, ws, su) {
   const sp = v => fmtNum(conv('speed', 'kt', su, v), 0) + ' ' + UNITS.speed[su].n;
   const windShown = ws * sc >= 3;
   const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wind triangle: heading ${deg(th)} at ${sp(tas)}, wind from ${deg(wd)} at ${sp(ws)}, track ${deg(trk)} at ${sp(gs)}">
+    ${glowDefs('glow-tri', W, H)}
     ${northArrow(22, 26)}
+    <g filter="url(#glow-tri)">
     ${arrow(o, g, 'var(--course)', 4, '')}
     ${arrow(o, a, 'var(--value)', 3, '')}
     ${windShown ? arrow(a, g, 'var(--wind)', 3, '7 5') : ''}
+    </g>
     <circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="4.5" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/>
     ${vecLabel(o, a, ctr, 'HDG ' + deg(th), 'var(--value)')}
     ${windShown ? vecLabel(a, g, ctr, 'WIND', 'var(--wind)') : ''}
@@ -920,7 +956,7 @@ function crosswindSVG(rw, wd, ws, vals, su) {
   const n2 = String(((Math.round(rw) + 17) % 36) + 1).padStart(2, '0');
   const dashes = [-60, -30, 0, 30, 60].map(y => `<rect x="${cx - 1.5}" y="${cy + y - 8}" width="3" height="16" style="fill:var(--runway-mark)"/>`).join('');
   const rwyG = `<g transform="rotate(${hdg} ${cx} ${cy})">
-      <rect x="${cx - 19}" y="${cy - 108}" width="38" height="216" rx="2" style="fill:var(--runway)"/>
+      <rect x="${cx - 19}" y="${cy - 108}" width="38" height="216" rx="2" filter="url(#glow-xw)" style="fill:var(--runway);stroke:var(--value);stroke-width:1.5"/>
       ${dashes}
       <text x="${cx}" y="${cy + 97}" text-anchor="middle" style="fill:var(--runway-mark);font-size:15px;font-weight:700">${n1}</text>
       <text x="${cx}" y="${cy - 97}" text-anchor="middle" transform="rotate(180 ${cx} ${cy - 102})" style="fill:var(--runway-mark);font-size:15px;font-weight:700">${n2}</text>
@@ -932,9 +968,10 @@ function crosswindSVG(rw, wd, ws, vals, su) {
   const anchor = Math.sin(wd * D2R) > 0.35 ? 'end' : Math.sin(wd * D2R) < -0.35 ? 'start' : 'middle';
   const xw = vals ? vals[0] : NaN, hw = vals ? vals[1] : NaN;
   const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Runway ${n1} with wind from ${deg(wd)} at ${sp(ws)}">
+    ${glowDefs('glow-xw', W, H)}
     ${northArrow(22, 26)}
     ${rwyG}
-    ${ws > 0 ? arrow(from, to, 'var(--wind)', 4, '') : ''}
+    ${ws > 0 ? `<g filter="url(#glow-xw)">${arrow(from, to, 'var(--wind)', 4, '')}</g>` : ''}
     <text x="${Math.min(W - 6, Math.max(6, lx)).toFixed(1)}" y="${Math.min(H - 4, Math.max(14, ly)).toFixed(1)}" text-anchor="${anchor}" style="fill:var(--wind);font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:4px">${deg(wd)} @ ${esc(sp(ws))}</text>
   </svg>`;
   const legend = Number.isFinite(xw) ? `<div class="legend"><span><i style="border-color:var(--wind)"></i>Wind from ${deg(wd)}</span><span>Crosswind ${sp(Math.abs(xw))} ${Math.abs(xw) < 0.05 ? '' : xw < 0 ? 'from the left' : 'from the right'}</span><span>${hw <= 0 ? 'Headwind' : 'Tailwind'} ${sp(Math.abs(hw))}</span></div>` : '';
@@ -1092,7 +1129,7 @@ function wbChart(ac, r) {
   for (let w = Math.ceil(wmin / sw) * sw; w <= wmax; w += sw) grid += `<line x1="${ml}" x2="${W - mr}" y1="${Y(w).toFixed(1)}" y2="${Y(w).toFixed(1)}" style="stroke:var(--line);stroke-width:1"/><text x="${ml - 6}" y="${(Y(w) + 4).toFixed(1)}" text-anchor="end" style="fill:var(--muted);font-size:11px">${fmtNum(w, 0)}</text>`;
   const polys = ac.r.map(([n, p]) => {
     const d = p.map(([w, a]) => `${X(a).toFixed(1)},${Y(w).toFixed(1)}`).join(' ');
-    if (/normal/i.test(n)) return `<polygon points="${d}" style="fill:var(--course);fill-opacity:.1;stroke:var(--course);stroke-width:2;stroke-linejoin:round"/>`;
+    if (/normal/i.test(n)) return `<polygon points="${d}" style="fill:var(--course);fill-opacity:.07;stroke:var(--course);stroke-width:2;stroke-linejoin:round"/>`;
     if (/utility/i.test(n)) return `<polygon points="${d}" style="fill:var(--value);fill-opacity:.08;stroke:var(--value);stroke-width:1.5;stroke-dasharray:6 4"/>`;
     return `<polygon points="${d}" style="fill:none;stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3"/>`;
   }).join('');
@@ -1101,18 +1138,19 @@ function wbChart(ac, r) {
   const zf = hasZ ? { x: X(r.zcg), y: Y(r.zW) } : null;
   const names = ac.r.map(([n]) => n);
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CG envelope for the ${esc(ac.n)} with takeoff point ${fmtNum(r.W, 0)} lb at ${fmtNum(r.cg, 2)} in">
-      ${grid}${polys}
-      ${zf ? `<line x1="${to.x.toFixed(1)}" y1="${to.y.toFixed(1)}" x2="${zf.x.toFixed(1)}" y2="${zf.y.toFixed(1)}" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>` : ''}
-      ${zf ? `<circle cx="${zf.x.toFixed(1)}" cy="${zf.y.toFixed(1)}" r="5" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/>` : ''}
-      <circle cx="${to.x.toFixed(1)}" cy="${to.y.toFixed(1)}" r="6" style="fill:var(--ink);stroke:var(--surface);stroke-width:2"/>
+      ${glowDefs('glow-wb', W, H, 2.2)}
+      ${grid}<g filter="url(#glow-wb)">${polys}
+      ${zf ? `<line x1="${to.x.toFixed(1)}" y1="${to.y.toFixed(1)}" x2="${zf.x.toFixed(1)}" y2="${zf.y.toFixed(1)}" style="stroke:var(--wind);stroke-width:1.5;stroke-dasharray:4 3"/>` : ''}
+      ${zf ? `<circle cx="${zf.x.toFixed(1)}" cy="${zf.y.toFixed(1)}" r="5" style="fill:var(--surface);stroke:var(--wind);stroke-width:2"/>` : ''}
+      <circle cx="${to.x.toFixed(1)}" cy="${to.y.toFixed(1)}" r="6" style="fill:var(--wind);stroke:var(--surface);stroke-width:2"/></g>
       <text x="${(ml + (W - ml - mr) / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" style="fill:var(--muted);font-size:11px">CG arm (in aft of datum)</text>
       <text x="10" y="${((H - mb + mt) / 2).toFixed(1)}" text-anchor="middle" transform="rotate(-90 10 ${((H - mb + mt) / 2).toFixed(1)})" style="fill:var(--muted);font-size:11px">Weight (lb)</text>
     </svg>
     <div class="legend">
       ${names.some(n => /normal/i.test(n)) ? `<span><i style="border-color:var(--course)"></i>Normal category</span>` : ''}
       ${names.some(n => /utility/i.test(n)) ? `<span><i class="dash" style="border-color:var(--value)"></i>Utility category</span>` : ''}
-      <span><i class="dot" style="background:var(--ink)"></i>Takeoff</span>
-      ${zf ? `<span><i class="ring" style="border-color:var(--ink)"></i>Fuel burned off</span>` : ''}
+      <span><i class="dot" style="background:var(--wind)"></i>Takeoff</span>
+      ${zf ? `<span><i class="ring" style="border-color:var(--wind)"></i>Fuel burned off</span>` : ''}
     </div>`;
 }
 
