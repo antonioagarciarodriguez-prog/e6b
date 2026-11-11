@@ -1,7 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#0B1117"/>
-  <circle cx="256" cy="256" r="196" fill="#16202A" stroke="#3A4A58" stroke-width="6"/>
-  <g stroke="#9FB0BE" stroke-linecap="round">
+  <defs>
+    <filter id="g" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#7C5CFF" stroke-opacity=".12" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="512" height="512" fill="#07060F"/>
+  <rect width="512" height="512" fill="url(#grid)"/>
+  <circle cx="256" cy="256" r="196" fill="#0E0C1D" stroke="#8B5CFF" stroke-width="6" filter="url(#g)"/>
+  <g stroke="#A19ECB" stroke-linecap="round">
     <g id="t" stroke-width="5"><line x1="256" y1="70" x2="256" y2="104"/></g>
     <use href="#t" transform="rotate(90 256 256)"/>
     <use href="#t" transform="rotate(180 256 256)"/>
@@ -17,10 +27,12 @@
       <line x1="256" y1="70" x2="256" y2="90" transform="rotate(330 256 256)"/>
     </g>
   </g>
-  <path d="M256 256 L376 136" stroke="#FF5CD6" stroke-width="14" stroke-linecap="round"/>
-  <path d="M352 128 L392 120 L384 160 Z" fill="#FF5CD6"/>
-  <path d="M256 256 L198 150" stroke="#45CFFF" stroke-width="10" stroke-linecap="round"/>
-  <path d="M198 150 L376 136" stroke="#FFB02E" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 18"/>
-  <circle cx="256" cy="256" r="20" fill="#0B1117" stroke="#E6EDF2" stroke-width="6"/>
-  <text x="256" y="412" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="64" letter-spacing="6" fill="#E6EDF2">E6B</text>
+  <g filter="url(#g)">
+    <path d="M256 256 L376 136" stroke="#FF2BD6" stroke-width="14" stroke-linecap="round"/>
+    <path d="M352 128 L392 120 L384 160 Z" fill="#FF2BD6"/>
+    <path d="M256 256 L198 150" stroke="#00F0FF" stroke-width="10" stroke-linecap="round"/>
+    <path d="M198 150 L376 136" stroke="#FFE600" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 18"/>
+  </g>
+  <circle cx="256" cy="256" r="20" fill="#07060F" stroke="#EEEDFF" stroke-width="6"/>
+  <text x="256" y="412" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="64" letter-spacing="6" fill="#00F0FF" filter="url(#g)">E6B</text>
 </svg>
