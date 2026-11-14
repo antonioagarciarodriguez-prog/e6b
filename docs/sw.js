@@ -1,5 +1,5 @@
 /* Offline cache for the E6B web app. Bump VERSION when the app files change. */
-const VERSION = 'e6b-web-2';
+const VERSION = 'e6b-web-3';
 const APP = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
